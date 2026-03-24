@@ -32,18 +32,20 @@
 typeset -gA YSU_MODERN_COMMANDS
 
 # Default mappings (user can override or extend)
+# Format: command "alt1:description|alt2:description" (pipe-separated for multiple alternatives)
+# The first installed alternative is suggested
 if [[ ${#YSU_MODERN_COMMANDS} -eq 0 ]]; then
   YSU_MODERN_COMMANDS=(
     cat    "bat:Syntax highlighting, line numbers, git integration"
-    ls     "eza:Modern file listing with icons, git status, tree view"
+    ls     "eza:Modern file listing with icons, git status, tree view|lsd:LSDeluxe - colorful ls with icons"
     find   "fd:Simpler syntax, faster, respects .gitignore"
-    grep   "rg:Ripgrep - faster, respects .gitignore, better defaults"
-    du     "dust:Intuitive disk usage with visual chart"
-    top    "btop:Beautiful resource monitor with mouse support"
+    grep   "rg:Ripgrep - faster, respects .gitignore, better defaults|ag:The Silver Searcher - fast code search"
+    du     "dust:Intuitive disk usage with visual chart|ncdu:NCurses disk usage analyzer"
+    top    "btop:Beautiful resource monitor with mouse support|htop:Interactive process viewer"
     ps     "procs:Modern process viewer with tree display"
-    diff   "delta:Syntax highlighting, side-by-side view, git integration"
+    diff   "delta:Syntax highlighting, side-by-side view, git integration|colordiff:Colorized diff output"
     sed    "sd:Simpler syntax, uses regex by default"
-    curl   "httpie:Human-friendly HTTP client (command: http)"
+    curl   "httpie:Human-friendly HTTP client (command: http)|curlie:Curl with httpie-like interface"
     ping   "gping:Ping with a graph"
     dig    "dog:DNS client with colorful output"
     man    "tldr:Simplified, community-driven man pages"
@@ -192,15 +194,20 @@ _ysu_check_modern() {
   local mapping="${YSU_MODERN_COMMANDS[$first_word]}"
   [[ -z "$mapping" ]] && return
 
-  local modern_cmd="${mapping%%:*}"
-  local description="${mapping#*:}"
+  # Support multiple alternatives separated by |
+  local entry modern_cmd description
+  for entry in ${(s:|:)mapping}; do
+    modern_cmd="${entry%%:*}"
+    description="${entry#*:}"
 
-  # Only suggest if the modern tool is actually installed
-  if command -v "$modern_cmd" &>/dev/null; then
-    _ysu_print "$YSU_SUGGEST_PREFIX" \
-      "Try \e[1m${modern_cmd}\e[0m\e[3${(_ysu_color $YSU_COLOR)}m instead of \e[1m${first_word}\e[0m — ${description}"
-    _ysu_record_tip
-  fi
+    # Suggest the first installed alternative
+    if command -v "$modern_cmd" &>/dev/null; then
+      _ysu_print "$YSU_SUGGEST_PREFIX" \
+        "Try \e[1m${modern_cmd}\e[0m\e[3${(_ysu_color $YSU_COLOR)}m instead of \e[1m${first_word}\e[0m — ${description}"
+      _ysu_record_tip
+      return
+    fi
+  done
 }
 
 # ============================================================================

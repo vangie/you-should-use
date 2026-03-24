@@ -99,49 +99,39 @@ YSU_IGNORE_COMMANDS="cat ls" # Don't suggest alternatives for these
 
 ### Custom Modern Command Mappings
 
-Override or extend the default mappings. Format: `command "alternative:description"`.
+Override or extend the default mappings. Use `|` to separate multiple alternatives — the first installed one is suggested.
 
 ```bash
 typeset -gA YSU_MODERN_COMMANDS
 YSU_MODERN_COMMANDS=(
   cat    "bat:Syntax highlighting, line numbers, git integration"
-  ls     "eza:Modern file listing with icons, git status, tree view"
+  ls     "eza:Modern file listing with icons|lsd:LSDeluxe - colorful ls with icons"
   find   "fd:Simpler syntax, faster, respects .gitignore"
-  grep   "rg:Ripgrep - faster, respects .gitignore, better defaults"
-  du     "dust:Intuitive disk usage with visual chart"
-  top    "btop:Beautiful resource monitor with mouse support"
-  ps     "procs:Modern process viewer with tree display"
-  diff   "delta:Syntax highlighting, side-by-side view, git integration"
-  sed    "sd:Simpler syntax, uses regex by default"
-  curl   "httpie:Human-friendly HTTP client (command: http)"
-  ping   "gping:Ping with a graph"
-  dig    "dog:DNS client with colorful output"
-  man    "tldr:Simplified, community-driven man pages"
-  cd     "zoxide:Smarter cd that learns your habits (command: z)"
+  grep   "rg:Ripgrep - faster, respects .gitignore|ag:The Silver Searcher"
   vim    "nvim:Neovim - modernized Vim fork"
 )
 ```
 
 ## Default Modern Command Mappings
 
-| Legacy Command | Modern Alternative | Description |
+| Legacy Command | Modern Alternatives | Description |
 |---|---|---|
 | `cat` | `bat` | Syntax highlighting, line numbers, git integration |
-| `ls` | `eza` | Modern file listing with icons, git status, tree view |
+| `ls` | `eza`, `lsd` | Modern file listing with icons, git status, tree view |
 | `find` | `fd` | Simpler syntax, faster, respects .gitignore |
-| `grep` | `rg` | Ripgrep - faster, respects .gitignore |
-| `du` | `dust` | Intuitive disk usage with visual chart |
-| `top` | `btop` | Beautiful resource monitor with mouse support |
+| `grep` | `rg`, `ag` | Ripgrep / Silver Searcher - faster, respects .gitignore |
+| `du` | `dust`, `ncdu` | Intuitive disk usage with visual chart |
+| `top` | `btop`, `htop` | Beautiful resource monitor with mouse support |
 | `ps` | `procs` | Modern process viewer with tree display |
-| `diff` | `delta` | Syntax highlighting, side-by-side view |
+| `diff` | `delta`, `colordiff` | Syntax highlighting, side-by-side view |
 | `sed` | `sd` | Simpler syntax, uses regex by default |
-| `curl` | `httpie` | Human-friendly HTTP client |
+| `curl` | `httpie`, `curlie` | Human-friendly HTTP client |
 | `ping` | `gping` | Ping with a graph |
 | `dig` | `dog` | DNS client with colorful output |
 | `man` | `tldr` | Simplified, community-driven man pages |
 | `cd` | `zoxide` | Smarter cd that learns your habits |
 
-> **Note:** Suggestions only appear when the modern alternative is actually installed on your system.
+> **Note:** Suggestions only appear when the modern alternative is actually installed on your system. When multiple alternatives are configured, the first installed one is suggested.
 
 ## How It Works
 
