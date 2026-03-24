@@ -1,9 +1,9 @@
-# zsh-smart-alias
+# zsh-you-should-use
 
 A Zsh plugin that helps you work smarter by:
 
-1. **Alias Reminders** - When you type a full command that has an alias defined, it reminds you to use the alias
-2. **Modern Command Suggestions** - When you use legacy commands (cat, ls, find, grep, etc.), it suggests modern Rust/Go alternatives if they're installed
+1. **Alias Reminders** — When you type a full command that has an alias defined, it reminds you to use the alias
+2. **Modern Command Suggestions** — When you use legacy commands (cat, ls, find, grep, etc.), it suggests modern Rust/Go alternatives if they're installed
 
 ## Demo
 
@@ -23,25 +23,25 @@ $ find . -name "*.js"
 ### oh-my-zsh
 
 ```bash
-git clone https://github.com/vangie/zsh-smart-alias ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-smart-alias
+git clone https://github.com/vangie/zsh-you-should-use ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-you-should-use
 ```
 
-Then add `zsh-smart-alias` to your plugins in `~/.zshrc`:
+Then add `zsh-you-should-use` to your plugins in `~/.zshrc`:
 
 ```bash
-plugins=(... zsh-smart-alias)
+plugins=(... zsh-you-should-use)
 ```
 
 ### zinit
 
 ```bash
-zinit light vangie/zsh-smart-alias
+zinit light vangie/zsh-you-should-use
 ```
 
 ### zplug
 
 ```bash
-zplug "vangie/zsh-smart-alias"
+zplug "vangie/zsh-you-should-use"
 ```
 
 ### Antidote
@@ -49,14 +49,14 @@ zplug "vangie/zsh-smart-alias"
 Add to your `.zsh_plugins.txt`:
 
 ```
-vangie/zsh-smart-alias
+vangie/zsh-you-should-use
 ```
 
 ### Manual
 
 ```bash
-git clone https://github.com/vangie/zsh-smart-alias ~/.zsh-smart-alias
-echo 'source ~/.zsh-smart-alias/zsh-smart-alias.plugin.zsh' >> ~/.zshrc
+git clone https://github.com/vangie/zsh-you-should-use ~/.zsh-you-should-use
+echo 'source ~/.zsh-you-should-use/zsh-you-should-use.plugin.zsh' >> ~/.zshrc
 ```
 
 ## Configuration
@@ -66,19 +66,19 @@ All configuration is done via environment variables. Set them in your `.zshrc` *
 ### Feature Toggles
 
 ```bash
-ZSH_SMART_ALIAS_REMINDER_ENABLED=true    # Enable alias reminders (default: true)
-ZSH_SMART_ALIAS_SUGGEST_ENABLED=true     # Enable modern tool suggestions (default: true)
+YSU_REMINDER_ENABLED=true    # Enable alias reminders (default: true)
+YSU_SUGGEST_ENABLED=true     # Enable modern tool suggestions (default: true)
 ```
 
 ### Display
 
 ```bash
-ZSH_SMART_ALIAS_COLOR=yellow             # Message color (default: yellow)
+YSU_COLOR=yellow             # Message color (default: yellow)
 # Options: black, red, green, yellow, blue, magenta, cyan, white
 
-ZSH_SMART_ALIAS_PREFIX="💡"               # Prefix for all messages
-ZSH_SMART_ALIAS_REMINDER_PREFIX=""        # Extra prefix for alias reminders
-ZSH_SMART_ALIAS_SUGGEST_PREFIX=""         # Extra prefix for tool suggestions
+YSU_PREFIX="💡"               # Prefix for all messages
+YSU_REMINDER_PREFIX=""        # Extra prefix for alias reminders
+YSU_SUGGEST_PREFIX=""         # Extra prefix for tool suggestions
 ```
 
 ### Frequency Control
@@ -86,15 +86,15 @@ ZSH_SMART_ALIAS_SUGGEST_PREFIX=""         # Extra prefix for tool suggestions
 Avoid being too intrusive with these settings:
 
 ```bash
-ZSH_SMART_ALIAS_PROBABILITY=50           # Show tips 50% of the time (default: 100)
-ZSH_SMART_ALIAS_COOLDOWN=30              # Minimum 30 seconds between tips (default: 0)
+YSU_PROBABILITY=50           # Show tips 50% of the time (default: 100)
+YSU_COOLDOWN=30              # Minimum 30 seconds between tips (default: 0)
 ```
 
 ### Exclusions
 
 ```bash
-ZSH_SMART_ALIAS_IGNORE_ALIASES="g gc"    # Don't remind about these aliases
-ZSH_SMART_ALIAS_IGNORE_COMMANDS="cat ls" # Don't suggest alternatives for these
+YSU_IGNORE_ALIASES="g gc"    # Don't remind about these aliases
+YSU_IGNORE_COMMANDS="cat ls" # Don't suggest alternatives for these
 ```
 
 ### Custom Modern Command Mappings
@@ -102,8 +102,8 @@ ZSH_SMART_ALIAS_IGNORE_COMMANDS="cat ls" # Don't suggest alternatives for these
 Override or extend the default mappings. Format: `command "alternative:description"`.
 
 ```bash
-typeset -gA ZSH_SMART_ALIAS_MODERN_COMMANDS
-ZSH_SMART_ALIAS_MODERN_COMMANDS=(
+typeset -gA YSU_MODERN_COMMANDS
+YSU_MODERN_COMMANDS=(
   cat    "bat:Syntax highlighting, line numbers, git integration"
   ls     "eza:Modern file listing with icons, git status, tree view"
   find   "fd:Simpler syntax, faster, respects .gitignore"
@@ -152,19 +152,9 @@ The plugin hooks into Zsh's `preexec` function, which runs just before each comm
 
 Both checks respect the probability and cooldown settings to avoid being annoying.
 
-## Comparison with Similar Projects
-
-| Feature | zsh-smart-alias | [you-should-use](https://github.com/MichaelAquilina/zsh-you-should-use) |
-|---|---|---|
-| Alias reminders | Yes | Yes |
-| Modern tool suggestions | Yes | No |
-| Cooldown timer | Yes | No |
-| Probability control | Yes | No |
-| Custom mappings | Yes | N/A |
-
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
+MIT License — see [LICENSE](LICENSE) for details.
 
 ## Contributing
 

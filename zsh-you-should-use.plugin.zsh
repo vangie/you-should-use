@@ -1,6 +1,6 @@
 #!/usr/bin/env zsh
-# zsh-smart-alias - Alias reminders & modern command suggestions for Zsh
-# https://github.com/vangie/zsh-smart-alias
+# zsh-you-should-use - Alias reminders & modern command suggestions for Zsh
+# https://github.com/vangie/zsh-you-should-use
 # MIT License
 
 # ============================================================================
@@ -8,32 +8,32 @@
 # ============================================================================
 
 # Feature toggles
-: ${ZSH_SMART_ALIAS_REMINDER_ENABLED:=true}
-: ${ZSH_SMART_ALIAS_SUGGEST_ENABLED:=true}
+: ${YSU_REMINDER_ENABLED:=true}
+: ${YSU_SUGGEST_ENABLED:=true}
 
 # Display settings
-: ${ZSH_SMART_ALIAS_COLOR:=yellow}           # Color for messages (black,red,green,yellow,blue,magenta,cyan,white)
-: ${ZSH_SMART_ALIAS_PREFIX:="💡"}             # Prefix for all messages
-: ${ZSH_SMART_ALIAS_REMINDER_PREFIX:=""}      # Additional prefix for alias reminders
-: ${ZSH_SMART_ALIAS_SUGGEST_PREFIX:=""}       # Additional prefix for modern tool suggestions
+: ${YSU_COLOR:=yellow}           # Color for messages (black,red,green,yellow,blue,magenta,cyan,white)
+: ${YSU_PREFIX:="💡"}             # Prefix for all messages
+: ${YSU_REMINDER_PREFIX:=""}      # Additional prefix for alias reminders
+: ${YSU_SUGGEST_PREFIX:=""}       # Additional prefix for modern tool suggestions
 
 # Frequency control
-: ${ZSH_SMART_ALIAS_PROBABILITY:=100}         # Percentage chance to show a tip (1-100)
-: ${ZSH_SMART_ALIAS_COOLDOWN:=0}              # Minimum seconds between tips (0 = no cooldown)
+: ${YSU_PROBABILITY:=100}         # Percentage chance to show a tip (1-100)
+: ${YSU_COOLDOWN:=0}              # Minimum seconds between tips (0 = no cooldown)
 
 # Exclusions
-: ${ZSH_SMART_ALIAS_IGNORE_ALIASES:=""}       # Space-separated list of aliases to ignore
-: ${ZSH_SMART_ALIAS_IGNORE_COMMANDS:=""}      # Space-separated list of commands to ignore for suggestions
+: ${YSU_IGNORE_ALIASES:=""}       # Space-separated list of aliases to ignore
+: ${YSU_IGNORE_COMMANDS:=""}      # Space-separated list of commands to ignore for suggestions
 
 # ============================================================================
 # Modern command alternatives mapping
 # ============================================================================
 
-typeset -gA ZSH_SMART_ALIAS_MODERN_COMMANDS
+typeset -gA YSU_MODERN_COMMANDS
 
 # Default mappings (user can override or extend)
-if [[ ${#ZSH_SMART_ALIAS_MODERN_COMMANDS} -eq 0 ]]; then
-  ZSH_SMART_ALIAS_MODERN_COMMANDS=(
+if [[ ${#YSU_MODERN_COMMANDS} -eq 0 ]]; then
+  YSU_MODERN_COMMANDS=(
     cat    "bat:Syntax highlighting, line numbers, git integration"
     ls     "eza:Modern file listing with icons, git status, tree view"
     find   "fd:Simpler syntax, faster, respects .gitignore"
@@ -55,13 +55,13 @@ fi
 # Internal state
 # ============================================================================
 
-typeset -g _ZSH_SMART_ALIAS_LAST_TIP_TIME=0
+typeset -g _YSU_LAST_TIP_TIME=0
 
 # ============================================================================
 # Helper functions
 # ============================================================================
 
-_zsh_smart_alias_color() {
+_ysu_color() {
   local color=$1
   case $color in
     black)   echo "0" ;;
@@ -76,28 +76,28 @@ _zsh_smart_alias_color() {
   esac
 }
 
-_zsh_smart_alias_print() {
+_ysu_print() {
   local color_code
-  color_code=$(_zsh_smart_alias_color "$ZSH_SMART_ALIAS_COLOR")
-  local prefix="$ZSH_SMART_ALIAS_PREFIX"
+  color_code=$(_ysu_color "$YSU_COLOR")
+  local prefix="$YSU_PREFIX"
   [[ -n "$1" ]] && prefix="$prefix$1"
   echo -e "\e[3${color_code}m${prefix} $2\e[0m" >&2
 }
 
-_zsh_smart_alias_should_show() {
+_ysu_should_show() {
   # Check cooldown
-  if [[ $ZSH_SMART_ALIAS_COOLDOWN -gt 0 ]]; then
+  if [[ $YSU_COOLDOWN -gt 0 ]]; then
     local now=$EPOCHSECONDS
-    local elapsed=$(( now - _ZSH_SMART_ALIAS_LAST_TIP_TIME ))
-    if [[ $elapsed -lt $ZSH_SMART_ALIAS_COOLDOWN ]]; then
+    local elapsed=$(( now - _YSU_LAST_TIP_TIME ))
+    if [[ $elapsed -lt $YSU_COOLDOWN ]]; then
       return 1
     fi
   fi
 
   # Check probability
-  if [[ $ZSH_SMART_ALIAS_PROBABILITY -lt 100 ]]; then
+  if [[ $YSU_PROBABILITY -lt 100 ]]; then
     local rand=$(( RANDOM % 100 + 1 ))
-    if [[ $rand -gt $ZSH_SMART_ALIAS_PROBABILITY ]]; then
+    if [[ $rand -gt $YSU_PROBABILITY ]]; then
       return 1
     fi
   fi
@@ -105,23 +105,23 @@ _zsh_smart_alias_should_show() {
   return 0
 }
 
-_zsh_smart_alias_record_tip() {
-  _ZSH_SMART_ALIAS_LAST_TIP_TIME=$EPOCHSECONDS
+_ysu_record_tip() {
+  _YSU_LAST_TIP_TIME=$EPOCHSECONDS
 }
 
-_zsh_smart_alias_is_ignored_alias() {
+_ysu_is_ignored_alias() {
   local alias_name="$1"
   local ignored
-  for ignored in ${(s: :)ZSH_SMART_ALIAS_IGNORE_ALIASES}; do
+  for ignored in ${(s: :)YSU_IGNORE_ALIASES}; do
     [[ "$ignored" == "$alias_name" ]] && return 0
   done
   return 1
 }
 
-_zsh_smart_alias_is_ignored_command() {
+_ysu_is_ignored_command() {
   local cmd="$1"
   local ignored
-  for ignored in ${(s: :)ZSH_SMART_ALIAS_IGNORE_COMMANDS}; do
+  for ignored in ${(s: :)YSU_IGNORE_COMMANDS}; do
     [[ "$ignored" == "$cmd" ]] && return 0
   done
   return 1
@@ -131,8 +131,8 @@ _zsh_smart_alias_is_ignored_command() {
 # Feature 1: Alias Reminders
 # ============================================================================
 
-_zsh_smart_alias_check_aliases() {
-  [[ "$ZSH_SMART_ALIAS_REMINDER_ENABLED" != "true" ]] && return
+_ysu_check_aliases() {
+  [[ "$YSU_REMINDER_ENABLED" != "true" ]] && return
 
   local typed_command="$1"
   local first_word="${typed_command%% *}"
@@ -142,7 +142,7 @@ _zsh_smart_alias_check_aliases() {
   # Check all defined aliases
   local alias_name alias_value
   for alias_name alias_value in ${(kv)aliases}; do
-    _zsh_smart_alias_is_ignored_alias "$alias_name" && continue
+    _ysu_is_ignored_alias "$alias_name" && continue
 
     # Skip if the user already typed the alias
     [[ "$first_word" == "$alias_name" ]] && continue
@@ -159,7 +159,7 @@ _zsh_smart_alias_check_aliases() {
 
   # Also check global aliases
   for alias_name alias_value in ${(kv)galiases}; do
-    _zsh_smart_alias_is_ignored_alias "$alias_name" && continue
+    _ysu_is_ignored_alias "$alias_name" && continue
     [[ "$first_word" == "$alias_name" ]] && continue
     if [[ "$typed_command" == *"${alias_value}"* ]]; then
       if [[ -z "$found_value" ]] || [[ ${#alias_value} -gt ${#found_value} ]]; then
@@ -170,9 +170,9 @@ _zsh_smart_alias_check_aliases() {
   done
 
   if [[ -n "$found_alias" ]]; then
-    _zsh_smart_alias_print "$ZSH_SMART_ALIAS_REMINDER_PREFIX" \
-      "Use alias \e[1m${found_alias}\e[0m\e[3${(_zsh_smart_alias_color $ZSH_SMART_ALIAS_COLOR)}m instead of \e[1m${found_value}\e[0m"
-    _zsh_smart_alias_record_tip
+    _ysu_print "$YSU_REMINDER_PREFIX" \
+      "Use alias \e[1m${found_alias}\e[0m\e[3${(_ysu_color $YSU_COLOR)}m instead of \e[1m${found_value}\e[0m"
+    _ysu_record_tip
   fi
 }
 
@@ -180,16 +180,16 @@ _zsh_smart_alias_check_aliases() {
 # Feature 2: Modern Command Suggestions
 # ============================================================================
 
-_zsh_smart_alias_check_modern() {
-  [[ "$ZSH_SMART_ALIAS_SUGGEST_ENABLED" != "true" ]] && return
+_ysu_check_modern() {
+  [[ "$YSU_SUGGEST_ENABLED" != "true" ]] && return
 
   local typed_command="$1"
   local first_word="${typed_command%% *}"
 
-  _zsh_smart_alias_is_ignored_command "$first_word" && return
+  _ysu_is_ignored_command "$first_word" && return
 
   # Check if the command has a modern alternative
-  local mapping="${ZSH_SMART_ALIAS_MODERN_COMMANDS[$first_word]}"
+  local mapping="${YSU_MODERN_COMMANDS[$first_word]}"
   [[ -z "$mapping" ]] && return
 
   local modern_cmd="${mapping%%:*}"
@@ -197,9 +197,9 @@ _zsh_smart_alias_check_modern() {
 
   # Only suggest if the modern tool is actually installed
   if command -v "$modern_cmd" &>/dev/null; then
-    _zsh_smart_alias_print "$ZSH_SMART_ALIAS_SUGGEST_PREFIX" \
-      "Try \e[1m${modern_cmd}\e[0m\e[3${(_zsh_smart_alias_color $ZSH_SMART_ALIAS_COLOR)}m instead of \e[1m${first_word}\e[0m — ${description}"
-    _zsh_smart_alias_record_tip
+    _ysu_print "$YSU_SUGGEST_PREFIX" \
+      "Try \e[1m${modern_cmd}\e[0m\e[3${(_ysu_color $YSU_COLOR)}m instead of \e[1m${first_word}\e[0m — ${description}"
+    _ysu_record_tip
   fi
 }
 
@@ -207,20 +207,20 @@ _zsh_smart_alias_check_modern() {
 # Hook into Zsh's preexec
 # ============================================================================
 
-_zsh_smart_alias_preexec() {
+_ysu_preexec() {
   local typed_command="$1"
 
   # Skip empty commands
   [[ -z "$typed_command" ]] && return
 
   # Check rate limiting
-  _zsh_smart_alias_should_show || return
+  _ysu_should_show || return
 
   # Run both checks
-  _zsh_smart_alias_check_aliases "$typed_command"
-  _zsh_smart_alias_check_modern "$typed_command"
+  _ysu_check_aliases "$typed_command"
+  _ysu_check_modern "$typed_command"
 }
 
 # Register the preexec hook (append, don't overwrite)
 autoload -Uz add-zsh-hook
-add-zsh-hook preexec _zsh_smart_alias_preexec
+add-zsh-hook preexec _ysu_preexec
