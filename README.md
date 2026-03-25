@@ -5,7 +5,7 @@ A shell plugin that helps you work smarter by:
 1. **Alias Reminders** — When you type a full command that has an alias defined, it reminds you to use the alias
 2. **Modern Command Suggestions** — When you use legacy commands (cat, ls, find, grep, etc.), it suggests modern Rust/Go alternatives if they're installed
 
-> Currently supports **Zsh**. Bash and Fish support is planned.
+> Currently supports **Zsh** and **Fish**. Bash support is planned.
 
 ## Demo
 
@@ -54,11 +54,32 @@ Add to your `.zsh_plugins.txt`:
 vangie/you-should-use
 ```
 
-### Manual
+### Manual (Zsh)
 
 ```bash
 git clone https://github.com/vangie/you-should-use ~/.you-should-use
 echo 'source ~/.you-should-use/you-should-use.plugin.zsh' >> ~/.zshrc
+```
+
+### Fish
+
+#### Using Fisher
+
+```fish
+fisher install vangie/you-should-use
+```
+
+#### Using Oh My Fish
+
+```fish
+omf install https://github.com/vangie/you-should-use
+```
+
+#### Manual (Fish)
+
+```fish
+git clone https://github.com/vangie/you-should-use ~/.you-should-use
+cp ~/.you-should-use/conf.d/you-should-use.fish ~/.config/fish/conf.d/
 ```
 
 ## Configuration
@@ -137,7 +158,7 @@ YSU_MODERN_COMMANDS=(
 
 ## How It Works
 
-The plugin hooks into the shell's pre-execution mechanism (`preexec` in Zsh) to intercept commands before they run. It:
+The plugin hooks into the shell's pre-execution mechanism (`preexec` in Zsh, `fish_preexec` event in Fish) to intercept commands before they run. It:
 
 1. Checks if you typed a command that matches an existing alias expansion (alias reminder)
 2. Checks if the command has a known modern alternative that is installed (tool suggestion)
@@ -147,8 +168,8 @@ Both checks respect the probability and cooldown settings to avoid being annoyin
 ## Roadmap
 
 - [x] Zsh support
+- [x] Fish support
 - [ ] Bash support
-- [ ] Fish support
 
 ## License
 
