@@ -58,6 +58,7 @@ fi
 # ============================================================================
 
 typeset -g _YSU_LAST_TIP_TIME=0
+typeset -ga _YSU_MESSAGES=()
 
 # ============================================================================
 # Helper functions
@@ -78,12 +79,26 @@ _ysu_color() {
   esac
 }
 
-_ysu_print() {
+_ysu_format() {
   local color_code
   color_code=$(_ysu_color "$YSU_COLOR")
   local prefix="$YSU_PREFIX"
   [[ -n "$1" ]] && prefix="$prefix$1"
-  echo -e "\e[3${color_code}m${prefix} $2\e[0m" >&2
+  echo "\e[3${color_code}m${prefix} $2\e[0m"
+}
+
+_ysu_buffer() {
+  local msg
+  msg=$(_ysu_format "$1" "$2")
+  _YSU_MESSAGES+=("$msg")
+}
+
+_ysu_flush() {
+  local msg
+  for msg in "${_YSU_MESSAGES[@]}"; do
+    echo -e "$msg" >&2
+  done
+  _YSU_MESSAGES=()
 }
 
 _ysu_should_show() {
@@ -172,7 +187,7 @@ _ysu_check_aliases() {
   done
 
   if [[ -n "$found_alias" ]]; then
-    _ysu_print "$YSU_REMINDER_PREFIX" \
+    _ysu_buffer "$YSU_REMINDER_PREFIX" \
       "Use alias \e[1m${found_alias}\e[0m\e[3$(_ysu_color $YSU_COLOR)m instead of \e[1m${found_value}\e[0m"
     _ysu_record_tip
   fi
@@ -202,7 +217,7 @@ _ysu_check_modern() {
 
     # Suggest the first installed alternative
     if command -v "$modern_cmd" &>/dev/null; then
-      _ysu_print "$YSU_SUGGEST_PREFIX" \
+      _ysu_buffer "$YSU_SUGGEST_PREFIX" \
         "Try \e[1m${modern_cmd}\e[0m\e[3$(_ysu_color $YSU_COLOR)m instead of \e[1m${first_word}\e[0m — ${description}"
       _ysu_record_tip
       return
@@ -211,7 +226,7 @@ _ysu_check_modern() {
 }
 
 # ============================================================================
-# Hook into Zsh's preexec
+# Hooks: collect in preexec, display in precmd
 # ============================================================================
 
 _ysu_preexec() {
@@ -223,11 +238,20 @@ _ysu_preexec() {
   # Check rate limiting
   _ysu_should_show || return
 
-  # Run both checks
+  # Buffer messages (displayed later in precmd)
   _ysu_check_aliases "$typed_command"
   _ysu_check_modern "$typed_command"
 }
 
-# Register the preexec hook (append, don't overwrite)
+_ysu_precmd() {
+  # Flush any buffered messages after the command finishes
+  # This avoids issues with prompt themes (e.g. powerlevel10k) that
+  # capture/redirect stderr during preexec
+  [[ ${#_YSU_MESSAGES} -eq 0 ]] && return
+  _ysu_flush
+}
+
+# Register hooks (append, don't overwrite)
 autoload -Uz add-zsh-hook
 add-zsh-hook preexec _ysu_preexec
+add-zsh-hook precmd _ysu_precmd
