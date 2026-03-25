@@ -1,5 +1,5 @@
 # =============================================================================
-# zsh-you-should-use configuration example
+# you-should-use configuration example
 # Add these lines to your .zshrc BEFORE sourcing the plugin
 # =============================================================================
 

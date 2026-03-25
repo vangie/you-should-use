@@ -1,6 +1,6 @@
 #!/usr/bin/env zsh
-# zsh-you-should-use - Alias reminders & modern command suggestions for Zsh
-# https://github.com/vangie/zsh-you-should-use
+# you-should-use - Alias reminders & modern command suggestions
+# https://github.com/vangie/you-should-use
 # MIT License
 
 # ============================================================================

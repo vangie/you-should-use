@@ -1,9 +1,11 @@
-# zsh-you-should-use
+# you-should-use
 
-A Zsh plugin that helps you work smarter by:
+A shell plugin that helps you work smarter by:
 
 1. **Alias Reminders** — When you type a full command that has an alias defined, it reminds you to use the alias
 2. **Modern Command Suggestions** — When you use legacy commands (cat, ls, find, grep, etc.), it suggests modern Rust/Go alternatives if they're installed
+
+> Currently supports **Zsh**. Bash and Fish support is planned.
 
 ## Demo
 
@@ -23,25 +25,25 @@ $ find . -name "*.js"
 ### oh-my-zsh
 
 ```bash
-git clone https://github.com/vangie/zsh-you-should-use ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-you-should-use
+git clone https://github.com/vangie/you-should-use ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/you-should-use
 ```
 
-Then add `zsh-you-should-use` to your plugins in `~/.zshrc`:
+Then add `you-should-use` to your plugins in `~/.zshrc`:
 
 ```bash
-plugins=(... zsh-you-should-use)
+plugins=(... you-should-use)
 ```
 
 ### zinit
 
 ```bash
-zinit light vangie/zsh-you-should-use
+zinit light vangie/you-should-use
 ```
 
 ### zplug
 
 ```bash
-zplug "vangie/zsh-you-should-use"
+zplug "vangie/you-should-use"
 ```
 
 ### Antidote
@@ -49,19 +51,19 @@ zplug "vangie/zsh-you-should-use"
 Add to your `.zsh_plugins.txt`:
 
 ```
-vangie/zsh-you-should-use
+vangie/you-should-use
 ```
 
 ### Manual
 
 ```bash
-git clone https://github.com/vangie/zsh-you-should-use ~/.zsh-you-should-use
-echo 'source ~/.zsh-you-should-use/zsh-you-should-use.plugin.zsh' >> ~/.zshrc
+git clone https://github.com/vangie/you-should-use ~/.you-should-use
+echo 'source ~/.you-should-use/you-should-use.plugin.zsh' >> ~/.zshrc
 ```
 
 ## Configuration
 
-All configuration is done via environment variables. Set them in your `.zshrc` **before** the plugin is loaded.
+All configuration is done via environment variables. Set them in your shell config **before** the plugin is loaded.
 
 ### Feature Toggles
 
@@ -135,12 +137,18 @@ YSU_MODERN_COMMANDS=(
 
 ## How It Works
 
-The plugin hooks into Zsh's `preexec` function, which runs just before each command is executed. It:
+The plugin hooks into the shell's pre-execution mechanism (`preexec` in Zsh) to intercept commands before they run. It:
 
 1. Checks if you typed a command that matches an existing alias expansion (alias reminder)
 2. Checks if the command has a known modern alternative that is installed (tool suggestion)
 
 Both checks respect the probability and cooldown settings to avoid being annoying.
+
+## Roadmap
+
+- [x] Zsh support
+- [ ] Bash support
+- [ ] Fish support
 
 ## License
 
@@ -152,7 +160,7 @@ Contributions are welcome! Feel free to:
 
 - Add new modern command mappings
 - Improve alias matching logic
-- Add support for more plugin managers
+- Add support for more shells or plugin managers
 - Fix bugs or improve documentation
 
 Please open an issue or pull request on GitHub.
