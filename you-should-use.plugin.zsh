@@ -173,7 +173,7 @@ _ysu_check_aliases() {
 
   if [[ -n "$found_alias" ]]; then
     _ysu_print "$YSU_REMINDER_PREFIX" \
-      "Use alias \e[1m${found_alias}\e[0m\e[3${(_ysu_color $YSU_COLOR)}m instead of \e[1m${found_value}\e[0m"
+      "Use alias \e[1m${found_alias}\e[0m\e[3$(_ysu_color $YSU_COLOR)m instead of \e[1m${found_value}\e[0m"
     _ysu_record_tip
   fi
 }
@@ -203,7 +203,7 @@ _ysu_check_modern() {
     # Suggest the first installed alternative
     if command -v "$modern_cmd" &>/dev/null; then
       _ysu_print "$YSU_SUGGEST_PREFIX" \
-        "Try \e[1m${modern_cmd}\e[0m\e[3${(_ysu_color $YSU_COLOR)}m instead of \e[1m${first_word}\e[0m — ${description}"
+        "Try \e[1m${modern_cmd}\e[0m\e[3$(_ysu_color $YSU_COLOR)m instead of \e[1m${first_word}\e[0m — ${description}"
       _ysu_record_tip
       return
     fi
