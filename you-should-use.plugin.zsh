@@ -80,11 +80,10 @@ _ysu_color() {
 }
 
 _ysu_format() {
-  local color_code
-  color_code=$(_ysu_color "$YSU_COLOR")
   local prefix="$YSU_PREFIX"
   [[ -n "$1" ]] && prefix="$prefix$1"
-  echo "\e[3${color_code}m${prefix} $2\e[0m"
+  # gruvbox-style: orange bg label + plain message line
+  echo "${prefix} \e[38;2;214;93;14m➜\e[0m\e[38;2;235;219;178m $2\e[0m"
 }
 
 _ysu_buffer() {
@@ -188,7 +187,7 @@ _ysu_check_aliases() {
 
   if [[ -n "$found_alias" ]]; then
     _ysu_buffer "$YSU_REMINDER_PREFIX" \
-      "Use alias \e[1m${found_alias}\e[0m\e[3$(_ysu_color $YSU_COLOR)m instead of \e[1m${found_value}\e[0m"
+      "You should use \e[38;2;152;151;26m\e[1m${found_alias}\e[0m\e[38;2;235;219;178m instead of \e[38;2;204;36;29m\e[1m${found_value}\e[0m"
     _ysu_record_tip
   fi
 }
@@ -218,7 +217,7 @@ _ysu_check_modern() {
     # Suggest the first installed alternative
     if command -v "$modern_cmd" &>/dev/null; then
       _ysu_buffer "$YSU_SUGGEST_PREFIX" \
-        "Try \e[1m${modern_cmd}\e[0m\e[3$(_ysu_color $YSU_COLOR)m instead of \e[1m${first_word}\e[0m — ${description}"
+        "You should use \e[38;2;152;151;26m\e[1m${modern_cmd}\e[0m\e[38;2;235;219;178m instead of \e[38;2;204;36;29m\e[1m${first_word}\e[0m\e[38;2;235;219;178m — \e[38;2;168;153;132m${description}"
       _ysu_record_tip
       return
     fi
@@ -230,7 +229,8 @@ _ysu_check_modern() {
 # ============================================================================
 
 _ysu_preexec() {
-  local typed_command="$1"
+  # Ghostty shell integration doesn't pass $1; fall back to history
+  local typed_command="${1:-${history[$HISTCMD]}}"
 
   # Skip empty commands
   [[ -z "$typed_command" ]] && return
@@ -238,15 +238,14 @@ _ysu_preexec() {
   # Check rate limiting
   _ysu_should_show || return
 
-  # Buffer messages (displayed later in precmd)
+  # Collect and immediately flush before command runs (more visible)
   _ysu_check_aliases "$typed_command"
   _ysu_check_modern "$typed_command"
+  _ysu_flush
 }
 
 _ysu_precmd() {
-  # Flush any buffered messages after the command finishes
-  # This avoids issues with prompt themes (e.g. powerlevel10k) that
-  # capture/redirect stderr during preexec
+  # Flush any remaining buffered messages (fallback)
   [[ ${#_YSU_MESSAGES} -eq 0 ]] && return
   _ysu_flush
 }
