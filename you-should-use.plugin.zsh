@@ -96,7 +96,7 @@ _ysu_buffer() {
 _ysu_flush() {
   local msg
   for msg in "${_YSU_MESSAGES[@]}"; do
-    echo -e "$msg" >&2
+    echo -e "$msg"
   done
   _YSU_MESSAGES=()
 }
