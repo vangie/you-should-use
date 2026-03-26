@@ -228,12 +228,18 @@ _ysu_preexec() {
   # Skip empty commands
   [[ -z "$typed_command" ]] && return
 
+  # Strip sudo prefix for matching
+  local check_command="$typed_command"
+  if [[ "$check_command" == sudo\ * ]]; then
+    check_command="${check_command#sudo }"
+  fi
+
   # Check rate limiting
   _ysu_should_show || return
 
   # Collect and immediately flush before command runs (more visible)
-  _ysu_check_aliases "$typed_command"
-  _ysu_check_modern "$typed_command"
+  _ysu_check_aliases "$check_command"
+  _ysu_check_modern "$check_command"
   _ysu_flush
 }
 
