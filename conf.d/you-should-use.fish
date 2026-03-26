@@ -24,7 +24,7 @@ set -q YSU_IGNORE_COMMANDS; or set -g YSU_IGNORE_COMMANDS
 
 if not set -q YSU_MODERN_KEYS
     set -g YSU_MODERN_KEYS \
-        cat ls find grep du top ps diff sed curl ping dig man cd
+        cat ls find grep du top ps diff sed curl ping dig man cd df xxd make wget time history
     set -g YSU_MODERN_VALS \
         "bat:Syntax highlighting, line numbers, git integration" \
         "eza:Modern file listing with icons, git status, tree view|lsd:LSDeluxe - colorful ls with icons" \
@@ -39,7 +39,13 @@ if not set -q YSU_MODERN_KEYS
         "gping:Ping with a graph" \
         "dog:DNS client with colorful output" \
         "tldr:Simplified, community-driven man pages" \
-        "zoxide:Smarter cd that learns your habits (command: z)"
+        "zoxide:Smarter cd that learns your habits (command: z)" \
+        "duf:Disk usage with colorful output and device overview" \
+        "hexyl:Colorful hex viewer with modern UI" \
+        "just:Simpler command runner, no tabs required" \
+        "xh:Fast, friendly HTTP client (like httpie but faster)" \
+        "hyperfine:Benchmarking tool with statistical analysis" \
+        "mcfly:Intelligent shell history search with neural network|atuin:Magical shell history with sync"
 end
 
 # ============================================================================

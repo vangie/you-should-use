@@ -49,6 +49,12 @@ if [[ ${#YSU_MODERN_COMMANDS} -eq 0 ]]; then
     dig    "dog:DNS client with colorful output"
     man    "tldr:Simplified, community-driven man pages"
     cd     "zoxide:Smarter cd that learns your habits (command: z)"
+    df     "duf:Disk usage with colorful output and device overview"
+    xxd    "hexyl:Colorful hex viewer with modern UI"
+    make   "just:Simpler command runner, no tabs required"
+    wget   "xh:Fast, friendly HTTP client (like httpie but faster)"
+    time   "hyperfine:Benchmarking tool with statistical analysis"
+    history "mcfly:Intelligent shell history search with neural network|atuin:Magical shell history with sync"
   )
 fi
 
