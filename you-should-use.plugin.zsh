@@ -225,6 +225,9 @@ _ysu_preexec() {
   # Ghostty shell integration doesn't pass $1; fall back to history
   local typed_command="${1:-${history[$HISTCMD]}}"
 
+  # Trim leading whitespace
+  typed_command="${typed_command#"${typed_command%%[! ]*}"}"
+
   # Skip empty commands
   [[ -z "$typed_command" ]] && return
 

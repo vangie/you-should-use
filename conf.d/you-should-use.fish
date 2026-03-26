@@ -235,7 +235,7 @@ end
 # ============================================================================
 
 function _ysu_on_preexec --on-event fish_preexec
-    set -l typed_command $argv[1]
+    set -l typed_command (string trim -- $argv[1])
     test -n "$typed_command"; or return
 
     # Strip sudo prefix for matching
