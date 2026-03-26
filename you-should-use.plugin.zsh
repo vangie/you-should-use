@@ -136,6 +136,21 @@ _ysu_is_ignored_command() {
 # Feature 1: Alias Reminders
 # ============================================================================
 
+# Expand chained aliases: resolve alias values by expanding aliases in them
+_ysu_expand_alias() {
+  local value="$1"
+  local first="${value%% *}"
+  local rest="${value#"$first"}"
+  local depth=0
+  while [[ -n "${aliases[$first]}" ]] && [[ $depth -lt 10 ]]; do
+    value="${aliases[$first]}${rest}"
+    first="${value%% *}"
+    rest="${value#"$first"}"
+    (( depth++ ))
+  done
+  echo "$value"
+}
+
 _ysu_check_aliases() {
   [[ "$YSU_REMINDER_ENABLED" != "true" ]] && return
 
@@ -143,21 +158,26 @@ _ysu_check_aliases() {
   local first_word="${typed_command%% *}"
   local found_alias=""
   local found_value=""
+  local found_expanded=""
 
   # Check all defined aliases
-  local alias_name alias_value
+  local alias_name alias_value expanded_value
   for alias_name alias_value in ${(kv)aliases}; do
     _ysu_is_ignored_alias "$alias_name" && continue
 
     # Skip if the user already typed the alias
     [[ "$first_word" == "$alias_name" ]] && continue
 
-    # Check if the typed command starts with the alias expansion
-    if [[ "$typed_command" == "${alias_value}"* ]]; then
-      # Prefer longer alias matches (more specific)
-      if [[ -z "$found_value" ]] || [[ ${#alias_value} -gt ${#found_value} ]]; then
+    # Expand chained aliases for matching
+    expanded_value="$(_ysu_expand_alias "$alias_value")"
+
+    # Check if the typed command starts with the expanded alias value
+    if [[ "$typed_command" == "${expanded_value}"* ]]; then
+      # Prefer longer expanded matches (more specific)
+      if [[ -z "$found_expanded" ]] || [[ ${#expanded_value} -gt ${#found_expanded} ]]; then
         found_alias="$alias_name"
         found_value="$alias_value"
+        found_expanded="$expanded_value"
       fi
     fi
   done
@@ -167,16 +187,17 @@ _ysu_check_aliases() {
     _ysu_is_ignored_alias "$alias_name" && continue
     [[ "$first_word" == "$alias_name" ]] && continue
     if [[ "$typed_command" == *"${alias_value}"* ]]; then
-      if [[ -z "$found_value" ]] || [[ ${#alias_value} -gt ${#found_value} ]]; then
+      if [[ -z "$found_expanded" ]] || [[ ${#alias_value} -gt ${#found_expanded} ]]; then
         found_alias="$alias_name"
         found_value="$alias_value"
+        found_expanded="$alias_value"
       fi
     fi
   done
 
   if [[ -n "$found_alias" ]]; then
     _ysu_buffer "$YSU_REMINDER_PREFIX" \
-      "You should use \e[1;4;31m${found_alias}\e[0m instead of \e[1;4;36m${found_value}\e[0m"
+      "You should use \e[1;4;31m${found_alias}\e[0m instead of \e[1;4;36m${found_expanded}\e[0m"
     _ysu_record_tip
   fi
 }
