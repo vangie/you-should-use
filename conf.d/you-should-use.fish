@@ -8,7 +8,6 @@
 
 set -q YSU_REMINDER_ENABLED; or set -g YSU_REMINDER_ENABLED true
 set -q YSU_SUGGEST_ENABLED; or set -g YSU_SUGGEST_ENABLED true
-set -q YSU_COLOR; or set -g YSU_COLOR yellow
 set -q YSU_PREFIX; or set -g YSU_PREFIX "💡"
 set -q YSU_REMINDER_PREFIX; or set -g YSU_REMINDER_PREFIX ""
 set -q YSU_SUGGEST_PREFIX; or set -g YSU_SUGGEST_PREFIX ""
@@ -53,28 +52,13 @@ set -g _YSU_LAST_TIP_TIME 0
 # Helper functions
 # ============================================================================
 
-function _ysu_color_code
-    switch $argv[1]
-        case black;   echo 0
-        case red;     echo 1
-        case green;   echo 2
-        case yellow;  echo 3
-        case blue;    echo 4
-        case magenta; echo 5
-        case cyan;    echo 6
-        case white;   echo 7
-        case '*';     echo 3
-    end
-end
-
 function _ysu_print
-    set -l cc (_ysu_color_code $YSU_COLOR)
     set -l prefix "$YSU_PREFIX"
     if test -n "$argv[1]"
         set prefix "$prefix$argv[1]"
     end
     set -l msg "$argv[2]"
-    echo -e "\e[3"$cc"m$prefix $msg\e[0m"
+    echo -e "$prefix \e[1;33m➜\e[0m $msg\e[0m"
 end
 
 function _ysu_should_show
@@ -173,9 +157,8 @@ function _ysu_check_aliases
     end
 
     if test -n "$found_alias"
-        set -l cc (_ysu_color_code $YSU_COLOR)
         _ysu_print "$YSU_REMINDER_PREFIX" \
-            "Use alias \e[1m$found_alias\e[0m\e[3"$cc"m instead of \e[1m$found_value\e[0m"
+            "You should use \e[1;32m$found_alias\e[0m instead of \e[1;31m$found_value\e[0m"
         _ysu_record_tip
     end
 end
@@ -210,9 +193,8 @@ function _ysu_check_modern
         set -l description (string split -m1 ':' -- $entry)[2]
 
         if command -q $modern_cmd
-            set -l cc (_ysu_color_code $YSU_COLOR)
             _ysu_print "$YSU_SUGGEST_PREFIX" \
-                "Try \e[1m$modern_cmd\e[0m\e[3"$cc"m instead of \e[1m$first_word\e[0m — $description"
+                "You should use \e[1;32m$modern_cmd\e[0m instead of \e[1;31m$first_word\e[0m — \e[2m$description\e[0m"
             _ysu_record_tip
             return
         end

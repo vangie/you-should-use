@@ -12,7 +12,6 @@
 : ${YSU_SUGGEST_ENABLED:=true}
 
 # Display settings
-: ${YSU_COLOR:=yellow}           # Color for messages (black,red,green,yellow,blue,magenta,cyan,white)
 : ${YSU_PREFIX:="💡"}             # Prefix for all messages
 : ${YSU_REMINDER_PREFIX:=""}      # Additional prefix for alias reminders
 : ${YSU_SUGGEST_PREFIX:=""}       # Additional prefix for modern tool suggestions
@@ -64,26 +63,10 @@ typeset -ga _YSU_MESSAGES=()
 # Helper functions
 # ============================================================================
 
-_ysu_color() {
-  local color=$1
-  case $color in
-    black)   echo "0" ;;
-    red)     echo "1" ;;
-    green)   echo "2" ;;
-    yellow)  echo "3" ;;
-    blue)    echo "4" ;;
-    magenta) echo "5" ;;
-    cyan)    echo "6" ;;
-    white)   echo "7" ;;
-    *)       echo "3" ;;  # default yellow
-  esac
-}
-
 _ysu_format() {
   local prefix="$YSU_PREFIX"
   [[ -n "$1" ]] && prefix="$prefix$1"
-  # gruvbox-style: orange bg label + plain message line
-  echo "${prefix} \e[38;2;214;93;14m➜\e[0m\e[38;2;235;219;178m $2\e[0m"
+  echo "${prefix} \e[1;33m➜\e[0m $2\e[0m"
 }
 
 _ysu_buffer() {
@@ -187,7 +170,7 @@ _ysu_check_aliases() {
 
   if [[ -n "$found_alias" ]]; then
     _ysu_buffer "$YSU_REMINDER_PREFIX" \
-      "You should use \e[38;2;152;151;26m\e[1m${found_alias}\e[0m\e[38;2;235;219;178m instead of \e[38;2;204;36;29m\e[1m${found_value}\e[0m"
+      "You should use \e[1;32m${found_alias}\e[0m instead of \e[1;31m${found_value}\e[0m"
     _ysu_record_tip
   fi
 }
@@ -217,7 +200,7 @@ _ysu_check_modern() {
     # Suggest the first installed alternative
     if command -v "$modern_cmd" &>/dev/null; then
       _ysu_buffer "$YSU_SUGGEST_PREFIX" \
-        "You should use \e[38;2;152;151;26m\e[1m${modern_cmd}\e[0m\e[38;2;235;219;178m instead of \e[38;2;204;36;29m\e[1m${first_word}\e[0m\e[38;2;235;219;178m — \e[38;2;168;153;132m${description}"
+        "You should use \e[1;32m${modern_cmd}\e[0m instead of \e[1;31m${first_word}\e[0m — \e[2m${description}\e[0m"
       _ysu_record_tip
       return
     fi
