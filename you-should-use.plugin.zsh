@@ -199,6 +199,10 @@ _ysu_check_modern() {
 
     # Suggest the first installed alternative
     if command -v "$modern_cmd" &>/dev/null; then
+      # Skip if first_word is already aliased to this modern command
+      local alias_val="${aliases[$first_word]:-${galiases[$first_word]:-}}"
+      [[ "${alias_val%% *}" == "$modern_cmd" ]] && return
+
       _ysu_buffer "$YSU_SUGGEST_PREFIX" \
         "You should use \e[1;32m${modern_cmd}\e[0m instead of \e[1;31m${first_word}\e[0m — \e[2m${description}\e[0m"
       _ysu_record_tip

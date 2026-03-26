@@ -193,6 +193,29 @@ function _ysu_check_modern
         set -l description (string split -m1 ':' -- $entry)[2]
 
         if command -q $modern_cmd
+            # Skip if first_word is already aliased/abbreviated to this modern command
+            set -l _skip false
+            # Check abbreviations
+            for _abbr_line in (abbr --show 2>/dev/null)
+                set -l _parts (string match -r -- '^abbr -a.*-- (\S+) (.+)$' $_abbr_line)
+                if test (count $_parts) -ge 3; and test "$_parts[2]" = "$first_word"
+                    set -l _abbr_val (string trim -c "'" -- $_parts[3])
+                    if test (string split -m1 ' ' -- $_abbr_val)[1] = "$modern_cmd"
+                        set _skip true
+                        break
+                    end
+                end
+            end
+            # Check alias functions
+            if test "$_skip" = false
+                set -l _fbody (functions $first_word 2>/dev/null | string collect)
+                set -l _wrapped (string match -r -- "^\s+command\s+(\S+)" $_fbody)
+                if test (count $_wrapped) -ge 2; and test "$_wrapped[2]" = "$modern_cmd"
+                    set _skip true
+                end
+            end
+            test "$_skip" = true; and return
+
             _ysu_print "$YSU_SUGGEST_PREFIX" \
                 "You should use \e[1;32m$modern_cmd\e[0m instead of \e[1;31m$first_word\e[0m — \e[2m$description\e[0m"
             _ysu_record_tip
