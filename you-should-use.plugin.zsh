@@ -195,6 +195,35 @@ _ysu_check_aliases() {
     fi
   done
 
+  # Check zsh-abbr abbreviations (if zsh-abbr plugin is loaded)
+  if (( ${+ABBR_REGULAR_USER_ABBREVIATIONS} )); then
+    for alias_name alias_value in ${(kv)ABBR_REGULAR_USER_ABBREVIATIONS}; do
+      _ysu_is_ignored_alias "$alias_name" && continue
+      [[ "$first_word" == "$alias_name" ]] && continue
+      expanded_value="$(_ysu_expand_alias "$alias_value")"
+      if [[ "$typed_command" == "${expanded_value}"* ]]; then
+        if [[ -z "$found_expanded" ]] || [[ ${#expanded_value} -gt ${#found_expanded} ]]; then
+          found_alias="$alias_name"
+          found_value="$alias_value"
+          found_expanded="$expanded_value"
+        fi
+      fi
+    done
+  fi
+  if (( ${+ABBR_GLOBAL_USER_ABBREVIATIONS} )); then
+    for alias_name alias_value in ${(kv)ABBR_GLOBAL_USER_ABBREVIATIONS}; do
+      _ysu_is_ignored_alias "$alias_name" && continue
+      [[ "$first_word" == "$alias_name" ]] && continue
+      if [[ "$typed_command" == *"${alias_value}"* ]]; then
+        if [[ -z "$found_expanded" ]] || [[ ${#alias_value} -gt ${#found_expanded} ]]; then
+          found_alias="$alias_name"
+          found_value="$alias_value"
+          found_expanded="$alias_value"
+        fi
+      fi
+    done
+  fi
+
   if [[ -n "$found_alias" ]]; then
     _ysu_buffer "$YSU_REMINDER_PREFIX" \
       "You should use \e[1;4;31m${found_alias}\e[0m instead of \e[1;4;36m${found_expanded}\e[0m"
