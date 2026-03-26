@@ -170,7 +170,7 @@ _ysu_check_aliases() {
 
   if [[ -n "$found_alias" ]]; then
     _ysu_buffer "$YSU_REMINDER_PREFIX" \
-      "You should use \e[1;4;36m${found_alias}\e[0m instead of \e[1;31m${found_value}\e[0m"
+      "You should use \e[1;4;31m${found_alias}\e[0m instead of \e[1;4;36m${found_value}\e[0m"
     _ysu_record_tip
   fi
 }
@@ -204,7 +204,7 @@ _ysu_check_modern() {
       [[ "${alias_val%% *}" == "$modern_cmd" ]] && return
 
       _ysu_buffer "$YSU_SUGGEST_PREFIX" \
-        "You should use \e[1;4;36m${modern_cmd}\e[0m instead of \e[1;31m${first_word}\e[0m — \e[3m${description}\e[0m"
+        "You should use \e[1;4;31m${modern_cmd}\e[0m instead of \e[1;4;36m${first_word}\e[0m — \e[3m${description}\e[0m"
       _ysu_record_tip
       return
     fi
