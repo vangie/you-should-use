@@ -66,7 +66,7 @@ typeset -ga _YSU_MESSAGES=()
 _ysu_format() {
   local prefix="$YSU_PREFIX"
   [[ -n "$1" ]] && prefix="$prefix$1"
-  echo "${prefix} \e[1;33m➜\e[0m $2\e[0m"
+  echo "${prefix} \e[1;93m➜\e[0m $2\e[0m"
 }
 
 _ysu_buffer() {
@@ -170,7 +170,7 @@ _ysu_check_aliases() {
 
   if [[ -n "$found_alias" ]]; then
     _ysu_buffer "$YSU_REMINDER_PREFIX" \
-      "You should use \e[1;32m${found_alias}\e[0m instead of \e[1;31m${found_value}\e[0m"
+      "You should use \e[1;4;36m${found_alias}\e[0m instead of \e[1;31m${found_value}\e[0m"
     _ysu_record_tip
   fi
 }
@@ -204,7 +204,7 @@ _ysu_check_modern() {
       [[ "${alias_val%% *}" == "$modern_cmd" ]] && return
 
       _ysu_buffer "$YSU_SUGGEST_PREFIX" \
-        "You should use \e[1;32m${modern_cmd}\e[0m instead of \e[1;31m${first_word}\e[0m — \e[2m${description}\e[0m"
+        "You should use \e[1;4;36m${modern_cmd}\e[0m instead of \e[1;31m${first_word}\e[0m — \e[3m${description}\e[0m"
       _ysu_record_tip
       return
     fi
