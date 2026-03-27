@@ -245,6 +245,47 @@ function _ysu_check_modern
 end
 
 # ============================================================================
+# Feature 3: Sudo alias suggestion (priority 2 — only when inner command has no suggestion)
+# ============================================================================
+
+function _ysu_check_sudo_alias
+    set -l inner_command $argv[1]
+
+    # Check abbreviations for sudo
+    for abbr_line in (abbr --show 2>/dev/null)
+        set -l parts (string match -r -- '^abbr -a.*-- (\S+) (.+)$' $abbr_line)
+        if test (count $parts) -ge 3
+            set -l abbr_name $parts[2]
+            set -l abbr_value (string trim -c "'" -- $parts[3])
+            _ysu_is_ignored_alias $abbr_name; and continue
+            # Match abbreviations whose value is "sudo" or "sudo "
+            if test "$abbr_value" = sudo -o "$abbr_value" = "sudo "
+                _ysu_print "$YSU_REMINDER_PREFIX" \
+                    "You should use \e[1;4;31m$abbr_name $inner_command\e[0m instead of \e[1;4;36msudo $inner_command\e[0m"
+                _ysu_record_tip
+                return
+            end
+        end
+    end
+
+    # Check alias functions for sudo
+    for func_name in (functions --names)
+        string match -q '_*' -- $func_name; and continue
+        set -l func_body (functions $func_name 2>/dev/null | string collect)
+        set -l wrapped (string match -r -- "^\s+command\s+(\S+)" $func_body)
+        if test (count $wrapped) -ge 2
+            _ysu_is_ignored_alias $func_name; and continue
+            if test "$wrapped[2]" = sudo
+                _ysu_print "$YSU_REMINDER_PREFIX" \
+                    "You should use \e[1;4;31m$func_name $inner_command\e[0m instead of \e[1;4;36msudo $inner_command\e[0m"
+                _ysu_record_tip
+                return
+            end
+        end
+    end
+end
+
+# ============================================================================
 # Hook: fish_preexec event
 # ============================================================================
 
@@ -254,8 +295,10 @@ function _ysu_on_preexec --on-event fish_preexec
 
     # Strip sudo prefix for matching — check the actual command, not sudo itself
     set -l check_command $typed_command
+    set -l _ysu_has_sudo false
     if string match -qr '^sudo( |$)' -- $check_command
         set check_command (string replace -r '^sudo ?' '' -- $check_command)
+        set _ysu_has_sudo true
     end
 
     # Skip if only sudo with no actual command
@@ -263,6 +306,16 @@ function _ysu_on_preexec --on-event fish_preexec
 
     _ysu_should_show; or return
 
+    # Three-tier priority for sudo commands:
+    # Priority 1: Inner command has a suggestion (alias reminder or modern tool)
+    # Priority 2: No inner suggestion, but sudo has an alias → suggest that
+    # Priority 3: Neither → no suggestion
+    set -l tip_time_before $_YSU_LAST_TIP_TIME
     _ysu_check_aliases $check_command
     _ysu_check_modern $check_command
+
+    # Priority 2: suggest sudo alias only when inner command had no suggestions
+    if test "$_ysu_has_sudo" = true -a "$_YSU_LAST_TIP_TIME" = "$tip_time_before"
+        _ysu_check_sudo_alias $check_command
+    end
 end

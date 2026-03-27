@@ -285,6 +285,27 @@ _ysu_check_modern() {
 }
 
 # ============================================================================
+# Feature 3: Sudo alias suggestion (priority 2 — only when inner command has no suggestion)
+# ============================================================================
+
+_ysu_check_sudo_alias() {
+  local inner_command="$1"
+  local alias_name alias_value
+  for alias_name alias_value in ${(kv)aliases}; do
+    _ysu_is_ignored_alias "$alias_name" && continue
+    # Skip "sudo" itself (alias sudo="sudo " is common but not useful to suggest)
+    [[ "$alias_name" == "sudo" ]] && continue
+    # Match aliases whose value is "sudo" or "sudo " (trailing space for alias chaining)
+    if [[ "$alias_value" == "sudo" || "$alias_value" == "sudo " ]]; then
+      _ysu_buffer "$YSU_REMINDER_PREFIX" \
+        "You should use \e[1;4;31m${alias_name} ${inner_command}\e[0m instead of \e[1;4;36msudo ${inner_command}\e[0m"
+      _ysu_record_tip
+      return
+    fi
+  done
+}
+
+# ============================================================================
 # Hooks: collect in preexec, display in precmd
 # ============================================================================
 
@@ -313,9 +334,19 @@ _ysu_preexec() {
   # Check rate limiting
   _ysu_should_show || return
 
-  # Collect and immediately flush before command runs (more visible)
+  # Three-tier priority for sudo commands:
+  # Priority 1: Inner command has a suggestion (alias reminder or modern tool)
+  # Priority 2: No inner suggestion, but sudo has an alias (e.g. _="sudo") → suggest that
+  # Priority 3: Neither → no suggestion
+  # Non-sudo commands: normal alias + modern check
   _ysu_check_aliases "$check_command"
   _ysu_check_modern "$check_command"
+
+  # Priority 2: suggest sudo alias only when inner command had no suggestions
+  if [[ ${#_YSU_MESSAGES} -eq 0 ]] && $_ysu_has_sudo; then
+    _ysu_check_sudo_alias "$check_command"
+  fi
+
   _ysu_flush
 }
 
