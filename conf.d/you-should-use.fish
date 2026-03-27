@@ -238,11 +238,14 @@ function _ysu_on_preexec --on-event fish_preexec
     set -l typed_command (string trim -- $argv[1])
     test -n "$typed_command"; or return
 
-    # Strip sudo prefix for matching
+    # Strip sudo prefix for matching — check the actual command, not sudo itself
     set -l check_command $typed_command
-    if string match -q 'sudo *' -- $check_command
-        set check_command (string replace -r '^sudo ' '' -- $check_command)
+    if string match -qr '^sudo( |$)' -- $check_command
+        set check_command (string replace -r '^sudo ?' '' -- $check_command)
     end
+
+    # Skip if only sudo with no actual command
+    test -n "$check_command"; or return
 
     _ysu_should_show; or return
 

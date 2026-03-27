@@ -281,11 +281,17 @@ _ysu_preexec() {
   # Skip empty commands
   [[ -z "$typed_command" ]] && return
 
-  # Strip sudo prefix for matching
+  # Strip sudo prefix for matching — check the actual command, not sudo itself
   local check_command="$typed_command"
-  if [[ "$check_command" == sudo\ * ]]; then
-    check_command="${check_command#sudo }"
+  local _ysu_has_sudo=false
+  if [[ "$check_command" == sudo\ * || "$check_command" == "sudo" ]]; then
+    check_command="${check_command#sudo}"
+    check_command="${check_command# }"
+    _ysu_has_sudo=true
   fi
+
+  # Skip if only sudo with no actual command
+  [[ -z "$check_command" ]] && return
 
   # Check rate limiting
   _ysu_should_show || return

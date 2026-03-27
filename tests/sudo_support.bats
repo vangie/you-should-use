@@ -41,6 +41,26 @@ run_zsh() {
   fi
 }
 
+@test "sudo: does not suggest sudo alias when command has sudo prefix" {
+  run_zsh '
+    alias _="sudo"
+    _ysu_preexec "sudo ls"
+    echo "count=$(_ysu_message_count)"
+  '
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"count=0"* ]]
+}
+
+@test "sudo: bare sudo with no args produces no suggestion" {
+  run_zsh '
+    alias _="sudo"
+    _ysu_preexec "sudo"
+    echo "count=$(_ysu_message_count)"
+  '
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"count=0"* ]]
+}
+
 @test "sudo: no false match on commands starting with sudo prefix" {
   run_zsh '
     alias g="git"
