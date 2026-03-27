@@ -116,6 +116,13 @@ function _ysu_check_aliases
     test "$YSU_REMINDER_ENABLED" = true; or return
 
     set -l typed_command $argv[1]
+
+    # Strip sudo prefix (defense-in-depth, same as _ysu_on_preexec)
+    if string match -qr '^sudo( |$)' -- $typed_command
+        set typed_command (string replace -r '^sudo ?' '' -- $typed_command)
+    end
+    test -n "$typed_command"; or return
+
     set -l first_word (string split -m1 ' ' -- $typed_command)[1]
     set -l found_alias ""
     set -l found_value ""
@@ -177,6 +184,13 @@ function _ysu_check_modern
     test "$YSU_SUGGEST_ENABLED" = true; or return
 
     set -l typed_command $argv[1]
+
+    # Strip sudo prefix (defense-in-depth, same as _ysu_on_preexec)
+    if string match -qr '^sudo( |$)' -- $typed_command
+        set typed_command (string replace -r '^sudo ?' '' -- $typed_command)
+    end
+    test -n "$typed_command"; or return
+
     set -l first_word (string split -m1 ' ' -- $typed_command)[1]
 
     _ysu_is_ignored_command $first_word; and return

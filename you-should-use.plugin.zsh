@@ -155,6 +155,15 @@ _ysu_check_aliases() {
   [[ "$YSU_REMINDER_ENABLED" != "true" ]] && return
 
   local typed_command="$1"
+
+  # Strip sudo prefix — only check the actual command, not sudo itself
+  # (defense-in-depth: _ysu_preexec also strips, but some environments may bypass it)
+  if [[ "$typed_command" == sudo\ * || "$typed_command" == "sudo" ]]; then
+    typed_command="${typed_command#sudo}"
+    typed_command="${typed_command# }"
+  fi
+  [[ -z "$typed_command" ]] && return
+
   local first_word="${typed_command%% *}"
   local found_alias=""
   local found_value=""
@@ -239,6 +248,14 @@ _ysu_check_modern() {
   [[ "$YSU_SUGGEST_ENABLED" != "true" ]] && return
 
   local typed_command="$1"
+
+  # Strip sudo prefix (defense-in-depth, same as _ysu_check_aliases)
+  if [[ "$typed_command" == sudo\ * || "$typed_command" == "sudo" ]]; then
+    typed_command="${typed_command#sudo}"
+    typed_command="${typed_command# }"
+  fi
+  [[ -z "$typed_command" ]] && return
+
   local first_word="${typed_command%% *}"
 
   _ysu_is_ignored_command "$first_word" && return
