@@ -171,7 +171,7 @@ function _ysu_check_aliases
 
     if test -n "$found_alias"
         _ysu_print "$YSU_REMINDER_PREFIX" \
-            "You should use \e[1;4;31m$found_alias\e[0m instead of \e[1;4;36m$found_value\e[0m"
+            "You should use \e[1;31m$found_alias\e[0m instead of \e[1;36m$found_value\e[0m"
         _ysu_record_tip
     end
 end
@@ -237,7 +237,7 @@ function _ysu_check_modern
             test "$_skip" = true; and return
 
             _ysu_print "$YSU_SUGGEST_PREFIX" \
-                "You should use \e[1;4;31m$modern_cmd\e[0m instead of \e[1;4;36m$first_word\e[0m — \e[3m$description\e[0m"
+                "You should use \e[1;31m$modern_cmd\e[0m instead of \e[1;36m$first_word\e[0m — \e[3m$description\e[0m"
             _ysu_record_tip
             return
         end
@@ -261,7 +261,7 @@ function _ysu_check_sudo_alias
             # Match abbreviations whose value is "sudo" or "sudo "
             if test "$abbr_value" = sudo -o "$abbr_value" = "sudo "
                 _ysu_print "$YSU_REMINDER_PREFIX" \
-                    "You should use \e[1;4;31m$abbr_name $inner_command\e[0m instead of \e[1;4;36msudo $inner_command\e[0m"
+                    "You should use \e[1;31m$abbr_name $inner_command\e[0m instead of \e[1;36msudo $inner_command\e[0m"
                 _ysu_record_tip
                 return
             end
@@ -277,7 +277,7 @@ function _ysu_check_sudo_alias
             _ysu_is_ignored_alias $func_name; and continue
             if test "$wrapped[2]" = sudo
                 _ysu_print "$YSU_REMINDER_PREFIX" \
-                    "You should use \e[1;4;31m$func_name $inner_command\e[0m instead of \e[1;4;36msudo $inner_command\e[0m"
+                    "You should use \e[1;31m$func_name $inner_command\e[0m instead of \e[1;36msudo $inner_command\e[0m"
                 _ysu_record_tip
                 return
             end

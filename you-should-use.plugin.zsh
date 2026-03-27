@@ -235,7 +235,7 @@ _ysu_check_aliases() {
 
   if [[ -n "$found_alias" ]]; then
     _ysu_buffer "$YSU_REMINDER_PREFIX" \
-      "You should use \e[1;4;31m${found_alias}\e[0m instead of \e[1;4;36m${found_expanded}\e[0m"
+      "You should use \e[1;31m${found_alias}\e[0m instead of \e[1;36m${found_expanded}\e[0m"
     _ysu_record_tip
   fi
 }
@@ -277,7 +277,7 @@ _ysu_check_modern() {
       [[ "${alias_val%% *}" == "$modern_cmd" ]] && return
 
       _ysu_buffer "$YSU_SUGGEST_PREFIX" \
-        "You should use \e[1;4;31m${modern_cmd}\e[0m instead of \e[1;4;36m${first_word}\e[0m — \e[3m${description}\e[0m"
+        "You should use \e[1;31m${modern_cmd}\e[0m instead of \e[1;36m${first_word}\e[0m — \e[3m${description}\e[0m"
       _ysu_record_tip
       return
     fi
@@ -298,7 +298,7 @@ _ysu_check_sudo_alias() {
     # Match aliases whose value is "sudo" or "sudo " (trailing space for alias chaining)
     if [[ "$alias_value" == "sudo" || "$alias_value" == "sudo " ]]; then
       _ysu_buffer "$YSU_REMINDER_PREFIX" \
-        "You should use \e[1;4;31m${alias_name} ${inner_command}\e[0m instead of \e[1;4;36msudo ${inner_command}\e[0m"
+        "You should use \e[1;31m${alias_name} ${inner_command}\e[0m instead of \e[1;36msudo ${inner_command}\e[0m"
       _ysu_record_tip
       return
     fi
