@@ -2,19 +2,31 @@
 # https://github.com/vangie/you-should-use
 # MIT License
 
+# Source user config if it exists (before defaults so user values take priority)
+set -l _ysu_config_file (set -q XDG_CONFIG_HOME; and echo "$XDG_CONFIG_HOME"; or echo "$HOME/.config")"/ysu/config.fish"
+if test -f "$_ysu_config_file"
+    source "$_ysu_config_file"
+end
+
 # ============================================================================
 # Configuration (set these in config.fish BEFORE sourcing)
 # ============================================================================
 
 set -q YSU_REMINDER_ENABLED; or set -g YSU_REMINDER_ENABLED true
 set -q YSU_SUGGEST_ENABLED; or set -g YSU_SUGGEST_ENABLED true
+set -q YSU_LLM_ENABLED; or set -g YSU_LLM_ENABLED false
 set -q YSU_PREFIX; or set -g YSU_PREFIX "💡"
 set -q YSU_REMINDER_PREFIX; or set -g YSU_REMINDER_PREFIX ""
 set -q YSU_SUGGEST_PREFIX; or set -g YSU_SUGGEST_PREFIX ""
+set -q YSU_LLM_PREFIX; or set -g YSU_LLM_PREFIX "🤖"
 set -q YSU_PROBABILITY; or set -g YSU_PROBABILITY 100
 set -q YSU_COOLDOWN; or set -g YSU_COOLDOWN 0
 set -q YSU_IGNORE_ALIASES; or set -g YSU_IGNORE_ALIASES
 set -q YSU_IGNORE_COMMANDS; or set -g YSU_IGNORE_COMMANDS
+set -q YSU_LLM_API_URL; or set -g YSU_LLM_API_URL "http://localhost:11434/v1/chat/completions"
+set -q YSU_LLM_API_KEY; or set -g YSU_LLM_API_KEY ""
+set -q YSU_LLM_MODEL; or set -g YSU_LLM_MODEL "qwen2.5-coder:7b"
+set -q YSU_LLM_CACHE_DIR; or set -g YSU_LLM_CACHE_DIR "$HOME/.cache/ysu"
 
 # ============================================================================
 # Modern command alternatives mapping (parallel lists)
@@ -53,6 +65,9 @@ end
 # ============================================================================
 
 set -g _YSU_LAST_TIP_TIME 0
+set -g _YSU_LLM_PENDING_CMD ""
+set -g _YSU_LLM_ASYNC_FILE ""
+set -g _YSU_LLM_ASYNC_CMD ""
 
 # ============================================================================
 # Helper functions
@@ -286,12 +301,158 @@ function _ysu_check_sudo_alias
 end
 
 # ============================================================================
-# Hook: fish_preexec event
+# Feature 4: LLM-powered suggestions (async + cached)
+# ============================================================================
+
+function _ysu_llm_cache_key
+    if command -q md5
+        echo -n "$argv[1]" | md5
+    else if command -q md5sum
+        echo -n "$argv[1]" | md5sum | string split -m1 ' '[1]
+    else
+        echo -n "$argv[1]" | cksum | string split -m1 ' '[1]
+    end
+end
+
+function _ysu_llm_should_trigger
+    set -l cmd $argv[1]
+    set -l exit_code $argv[2]
+
+    # Trigger on non-zero exit
+    test "$exit_code" -ne 0; and return 0
+
+    # Trigger on pipes or redirects
+    string match -q '*|*' -- $cmd; and return 0
+    string match -qr '[<>]' -- $cmd; and return 0
+
+    # Trigger on complex args (command + 3 or more arguments)
+    set -l words (string split ' ' -- $cmd)
+    test (count $words) -ge 4; and return 0
+
+    return 1
+end
+
+function _ysu_llm_json_escape
+    string replace -a '\\' '\\\\' -- $argv[1] \
+        | string replace -a '"' '\\"' \
+        | string replace -a \n '\\n' \
+        | string replace -a \t '\\t' \
+        | string replace -a \r '\\r'
+end
+
+function _ysu_llm_extract_content
+    set -l json $argv[1]
+    if command -q jq
+        echo $json | jq -r '.choices[0].message.content // empty' 2>/dev/null
+    else if command -q python3
+        echo $json | python3 -c "
+import sys, json
+try:
+    r = json.load(sys.stdin)
+    print(r['choices'][0]['message']['content'])
+except: pass
+" 2>/dev/null
+    else
+        # Simple fallback
+        echo $json | string match -r '"content"\s*:\s*"([^"]*)"' | tail -1
+    end
+end
+
+function _ysu_llm_query_async
+    set -l cmd $argv[1]
+
+    # Clean up any previous pending request
+    if test -n "$_YSU_LLM_ASYNC_FILE"
+        rm -f "$_YSU_LLM_ASYNC_FILE" "$_YSU_LLM_ASYNC_FILE.done" 2>/dev/null
+    end
+
+    mkdir -p "$YSU_LLM_CACHE_DIR"
+    set -g _YSU_LLM_ASYNC_FILE (mktemp "$YSU_LLM_CACHE_DIR/.pending.XXXXXX")
+    set -g _YSU_LLM_ASYNC_CMD "$cmd"
+
+    set -l escaped_cmd (_ysu_llm_json_escape "$cmd")
+    set -l system_prompt "You are a shell expert. Given a shell command, suggest a better alternative or optimization in one brief sentence. If there is no improvement, reply with exactly: none"
+    set -l payload "{\"model\":\"$YSU_LLM_MODEL\",\"messages\":[{\"role\":\"system\",\"content\":\"$system_prompt\"},{\"role\":\"user\",\"content\":\"$escaped_cmd\"}],\"max_tokens\":100,\"temperature\":0.3}"
+
+    set -l tmp_file $_YSU_LLM_ASYNC_FILE
+    set -l api_url $YSU_LLM_API_URL
+    set -l api_key $YSU_LLM_API_KEY
+    set -l cache_dir $YSU_LLM_CACHE_DIR
+
+    fish -c "
+        set -l auth_args
+        test -n '$api_key'; and set auth_args -H 'Authorization: Bearer $api_key'
+
+        set -l response (curl -s --max-time 10 \
+            -H 'Content-Type: application/json' \
+            \$auth_args \
+            -d '$payload' \
+            '$api_url' 2>/dev/null; or true)
+
+        set -l content ''
+        if test -n \"\$response\"
+            if command -q jq
+                set content (echo \$response | jq -r '.choices[0].message.content // empty' 2>/dev/null)
+            else if command -q python3
+                set content (echo \$response | python3 -c \"
+import sys, json
+try:
+    r = json.load(sys.stdin)
+    print(r['choices'][0]['message']['content'])
+except: pass
+\" 2>/dev/null)
+            end
+        end
+
+        set content (string trim -- \$content)
+        if test -n \"\$content\"; and test \"\$content\" != none; and test \"\$content\" != 'none.'
+            echo \$content > '$tmp_file'
+        else
+            echo -n > '$tmp_file'
+        end
+        touch '$tmp_file.done'
+    " &
+    disown 2>/dev/null
+end
+
+function _ysu_llm_check_async
+    test -n "$_YSU_LLM_ASYNC_FILE"; or return
+
+    # Check if background process finished
+    test -f "$_YSU_LLM_ASYNC_FILE.done"; or return
+
+    # Read result
+    set -l result ""
+    if test -s "$_YSU_LLM_ASYNC_FILE"
+        set result (cat "$_YSU_LLM_ASYNC_FILE")
+    end
+
+    # Cache the result
+    set -l cache_key (_ysu_llm_cache_key "$_YSU_LLM_ASYNC_CMD")
+    set -l cache_file "$YSU_LLM_CACHE_DIR/$cache_key"
+    if test -n "$result"
+        echo $result > "$cache_file"
+        _ysu_print "$YSU_LLM_PREFIX" "$result"
+    else
+        echo -n > "$cache_file"
+    end
+
+    # Cleanup
+    rm -f "$_YSU_LLM_ASYNC_FILE" "$_YSU_LLM_ASYNC_FILE.done" 2>/dev/null
+    set -g _YSU_LLM_ASYNC_FILE ""
+    set -g _YSU_LLM_ASYNC_CMD ""
+end
+
+# ============================================================================
+# Hooks
 # ============================================================================
 
 function _ysu_on_preexec --on-event fish_preexec
     set -l typed_command (string trim -- $argv[1])
     test -n "$typed_command"; or return
+
+    # Save full command for LLM evaluation in postexec
+    set -g _YSU_LLM_PENDING_CMD "$typed_command"
 
     # Strip sudo prefix for matching — check the actual command, not sudo itself
     set -l check_command $typed_command
@@ -318,4 +479,140 @@ function _ysu_on_preexec --on-event fish_preexec
     if test "$_ysu_has_sudo" = true -a "$_YSU_LAST_TIP_TIME" = "$tip_time_before"
         _ysu_check_sudo_alias $check_command
     end
+end
+
+function _ysu_on_postexec --on-event fish_postexec
+    set -l last_exit $status
+
+    # LLM: display completed async result from previous command
+    if test "$YSU_LLM_ENABLED" = true
+        _ysu_llm_check_async
+    end
+
+    # LLM: evaluate triggers for the just-finished command
+    if test "$YSU_LLM_ENABLED" = true; and test -n "$_YSU_LLM_PENDING_CMD"
+        if _ysu_llm_should_trigger "$_YSU_LLM_PENDING_CMD" "$last_exit"
+            set -l cache_key (_ysu_llm_cache_key "$_YSU_LLM_PENDING_CMD")
+            set -l cache_file "$YSU_LLM_CACHE_DIR/$cache_key"
+
+            if test -f "$cache_file"
+                # Cache hit
+                if test -s "$cache_file"
+                    set -l cached (cat "$cache_file")
+                    test -n "$cached"; and _ysu_print "$YSU_LLM_PREFIX" "$cached"
+                end
+            else
+                # Cache miss — fire async request
+                _ysu_llm_query_async "$_YSU_LLM_PENDING_CMD"
+            end
+        end
+        set -g _YSU_LLM_PENDING_CMD ""
+    end
+end
+
+# ============================================================================
+# Interactive configuration: ysu command
+# ============================================================================
+
+function ysu
+    switch $argv[1]
+        case config
+            _ysu_config_wizard
+        case cache
+            switch $argv[2]
+                case clear
+                    rm -f "$YSU_LLM_CACHE_DIR"/* 2>/dev/null
+                    rm -f "$YSU_LLM_CACHE_DIR"/.pending.* 2>/dev/null
+                    echo "LLM cache cleared."
+                case size
+                    set -l count (find "$YSU_LLM_CACHE_DIR" -maxdepth 1 -type f ! -name '.*' 2>/dev/null | wc -l | string trim)
+                    echo "$count cached suggestions"
+                case '*'
+                    echo "Usage: ysu cache [clear|size]"
+            end
+        case '*'
+            echo "Usage: ysu <command>"
+            echo "Commands:"
+            echo "  config    Configure you-should-use interactively"
+            echo "  cache     Manage LLM suggestion cache"
+    end
+end
+
+function _ysu_config_wizard
+    set -l config_dir (set -q XDG_CONFIG_HOME; and echo "$XDG_CONFIG_HOME"; or echo "$HOME/.config")"/ysu"
+    set -l config_file "$config_dir/config.fish"
+
+    while true
+        echo ""
+        echo -e "\e[1mYou Should Use — Configuration\e[0m"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo -e "  1) Alias Reminders:       "(test "$YSU_REMINDER_ENABLED" = true; and echo -e "\e[32m✓ enabled\e[0m"; or echo -e "\e[31m✗ disabled\e[0m")
+        echo -e "  2) Modern Suggestions:    "(test "$YSU_SUGGEST_ENABLED" = true; and echo -e "\e[32m✓ enabled\e[0m"; or echo -e "\e[31m✗ disabled\e[0m")
+        echo -e "  3) LLM Suggestions:       "(test "$YSU_LLM_ENABLED" = true; and echo -e "\e[32m✓ enabled\e[0m"; or echo -e "\e[31m✗ disabled\e[0m")
+        echo "  4) Tip Probability:       $YSU_PROBABILITY%"
+        echo "  5) Cooldown:              ${YSU_COOLDOWN}s"
+        echo "  6) LLM Settings           →"
+        echo ""
+        read -P "  Select (1-6, s=save, q=quit): " choice
+
+        switch $choice
+            case 1
+                test "$YSU_REMINDER_ENABLED" = true; and set -g YSU_REMINDER_ENABLED false; or set -g YSU_REMINDER_ENABLED true
+            case 2
+                test "$YSU_SUGGEST_ENABLED" = true; and set -g YSU_SUGGEST_ENABLED false; or set -g YSU_SUGGEST_ENABLED true
+            case 3
+                test "$YSU_LLM_ENABLED" = true; and set -g YSU_LLM_ENABLED false; or set -g YSU_LLM_ENABLED true
+            case 4
+                read -P "  Probability (1-100): " YSU_PROBABILITY
+            case 5
+                read -P "  Cooldown (seconds): " YSU_COOLDOWN
+            case 6
+                _ysu_config_llm
+            case s S
+                _ysu_config_save "$config_dir" "$config_file"
+            case q Q
+                echo "  Settings applied to current session."
+                return
+        end
+    end
+end
+
+function _ysu_config_llm
+    while true
+        echo ""
+        echo -e "\e[1mLLM Settings\e[0m"
+        echo "━━━━━━━━━━━━"
+        echo "  a) API URL:   $YSU_LLM_API_URL"
+        echo -e "  b) API Key:   "(test -n "$YSU_LLM_API_KEY"; and echo "••••"(string sub -s -4 -- "$YSU_LLM_API_KEY"); or echo "(not set)")
+        echo "  c) Model:     $YSU_LLM_MODEL"
+        echo ""
+        read -P "  Select (a-c, q=back): " choice
+
+        switch $choice
+            case a
+                read -P "  API URL: " YSU_LLM_API_URL
+            case b
+                read -P "  API Key: " YSU_LLM_API_KEY
+            case c
+                read -P "  Model: " YSU_LLM_MODEL
+            case q Q
+                return
+        end
+    end
+end
+
+function _ysu_config_save
+    set -l config_dir $argv[1]
+    set -l config_file $argv[2]
+    mkdir -p "$config_dir"
+    echo "# You Should Use — Configuration (generated by ysu config)
+set -g YSU_REMINDER_ENABLED $YSU_REMINDER_ENABLED
+set -g YSU_SUGGEST_ENABLED $YSU_SUGGEST_ENABLED
+set -g YSU_LLM_ENABLED $YSU_LLM_ENABLED
+set -g YSU_PROBABILITY $YSU_PROBABILITY
+set -g YSU_COOLDOWN $YSU_COOLDOWN
+set -g YSU_LLM_API_URL \"$YSU_LLM_API_URL\"
+set -g YSU_LLM_API_KEY \"$YSU_LLM_API_KEY\"
+set -g YSU_LLM_MODEL \"$YSU_LLM_MODEL\"" > "$config_file"
+    echo "  Saved to $config_file"
 end

@@ -26,6 +26,14 @@ _ysu_reset() {
   YSU_COOLDOWN=0
   YSU_IGNORE_ALIASES=""
   YSU_IGNORE_COMMANDS=""
+  YSU_LLM_ENABLED=false
+  YSU_LLM_API_URL="http://localhost:11434/v1/chat/completions"
+  YSU_LLM_API_KEY=""
+  YSU_LLM_MODEL="test-model"
+  YSU_LLM_CACHE_DIR="/tmp/ysu-test-cache-$$"
+  _YSU_LLM_PENDING_CMD=""
+  _YSU_LLM_ASYNC_FILE=""
+  _YSU_LLM_ASYNC_CMD=""
 }
 
 # Get buffered messages as plain text (strip ANSI codes)

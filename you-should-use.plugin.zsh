@@ -3,6 +3,10 @@
 # https://github.com/vangie/you-should-use
 # MIT License
 
+# Source user config if it exists (before defaults so user values take priority)
+local _ysu_config="${XDG_CONFIG_HOME:-$HOME/.config}/ysu/config.zsh"
+[[ -f "$_ysu_config" ]] && source "$_ysu_config"
+
 # ============================================================================
 # Configuration (override these in your .zshrc BEFORE sourcing the plugin)
 # ============================================================================
@@ -10,11 +14,13 @@
 # Feature toggles
 : ${YSU_REMINDER_ENABLED:=true}
 : ${YSU_SUGGEST_ENABLED:=true}
+: ${YSU_LLM_ENABLED:=false}
 
 # Display settings
 : ${YSU_PREFIX:="💡"}             # Prefix for all messages
 : ${YSU_REMINDER_PREFIX:=""}      # Additional prefix for alias reminders
 : ${YSU_SUGGEST_PREFIX:=""}       # Additional prefix for modern tool suggestions
+: ${YSU_LLM_PREFIX:="🤖"}        # Additional prefix for LLM suggestions
 
 # Frequency control
 : ${YSU_PROBABILITY:=100}         # Percentage chance to show a tip (1-100)
@@ -23,6 +29,12 @@
 # Exclusions
 : ${YSU_IGNORE_ALIASES:=""}       # Space-separated list of aliases to ignore
 : ${YSU_IGNORE_COMMANDS:=""}      # Space-separated list of commands to ignore for suggestions
+
+# LLM settings (OpenAI-compatible API — works with Ollama, OpenAI, etc.)
+: ${YSU_LLM_API_URL:="http://localhost:11434/v1/chat/completions"}
+: ${YSU_LLM_API_KEY:=""}
+: ${YSU_LLM_MODEL:="qwen2.5-coder:7b"}
+: ${YSU_LLM_CACHE_DIR:="$HOME/.cache/ysu"}
 
 # ============================================================================
 # Modern command alternatives mapping
@@ -64,6 +76,9 @@ fi
 
 typeset -g _YSU_LAST_TIP_TIME=0
 typeset -ga _YSU_MESSAGES=()
+typeset -g _YSU_LLM_PENDING_CMD=""
+typeset -g _YSU_LLM_ASYNC_FILE=""
+typeset -g _YSU_LLM_ASYNC_CMD=""
 
 # ============================================================================
 # Helper functions
@@ -306,6 +321,137 @@ _ysu_check_sudo_alias() {
 }
 
 # ============================================================================
+# Feature 4: LLM-powered suggestions (async + cached)
+# ============================================================================
+
+_ysu_json_escape() {
+  local s="$1"
+  s="${s//\\/\\\\}"
+  s="${s//\"/\\\"}"
+  s="${s//$'\n'/\\n}"
+  s="${s//$'\t'/\\t}"
+  s="${s//$'\r'/\\r}"
+  echo -n "$s"
+}
+
+_ysu_json_extract_content() {
+  local json="$1"
+  if command -v jq &>/dev/null; then
+    echo "$json" | jq -r '.choices[0].message.content // empty' 2>/dev/null
+  elif command -v python3 &>/dev/null; then
+    python3 -c "
+import sys, json
+try:
+    r = json.loads(sys.stdin.read())
+    print(r['choices'][0]['message']['content'])
+except: pass
+" <<< "$json" 2>/dev/null
+  else
+    # Simple fallback
+    echo "$json" | sed -n 's/.*"content"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | tail -1
+  fi
+}
+
+_ysu_llm_cache_key() {
+  if command -v md5 &>/dev/null; then
+    echo -n "$1" | md5
+  elif command -v md5sum &>/dev/null; then
+    echo -n "$1" | md5sum | cut -d' ' -f1
+  else
+    echo -n "$1" | cksum | cut -d' ' -f1
+  fi
+}
+
+_ysu_llm_should_trigger() {
+  local cmd="$1" exit_code="$2"
+
+  # Trigger on non-zero exit
+  [[ "$exit_code" -ne 0 ]] && return 0
+
+  # Trigger on pipes or redirects
+  [[ "$cmd" == *"|"* || "$cmd" == *">>"* || "$cmd" == *">"* || "$cmd" == *"<"* ]] && return 0
+
+  # Trigger on complex args (command + 3 or more arguments)
+  local -a words=(${(z)cmd})
+  [[ ${#words} -ge 4 ]] && return 0
+
+  return 1
+}
+
+_ysu_llm_query_async() {
+  local cmd="$1"
+
+  # Clean up any previous pending request
+  if [[ -n "$_YSU_LLM_ASYNC_FILE" ]]; then
+    rm -f "$_YSU_LLM_ASYNC_FILE" "${_YSU_LLM_ASYNC_FILE}.done" 2>/dev/null
+  fi
+
+  mkdir -p "$YSU_LLM_CACHE_DIR"
+  local tmp_file
+  tmp_file=$(mktemp "${YSU_LLM_CACHE_DIR}/.pending.XXXXXX")
+
+  local escaped_cmd
+  escaped_cmd=$(_ysu_json_escape "$cmd")
+  local system_prompt="You are a shell expert. Given a shell command, suggest a better alternative or optimization in one brief sentence. If there is no improvement, reply with exactly: none"
+  local payload="{\"model\":\"${YSU_LLM_MODEL}\",\"messages\":[{\"role\":\"system\",\"content\":\"${system_prompt}\"},{\"role\":\"user\",\"content\":\"${escaped_cmd}\"}],\"max_tokens\":100,\"temperature\":0.3}"
+
+  _YSU_LLM_ASYNC_FILE="$tmp_file"
+  _YSU_LLM_ASYNC_CMD="$cmd"
+
+  {
+    local response auth_args=()
+    [[ -n "$YSU_LLM_API_KEY" ]] && auth_args=(-H "Authorization: Bearer $YSU_LLM_API_KEY")
+
+    response=$(curl -s --max-time 10 \
+      -H "Content-Type: application/json" \
+      "${auth_args[@]}" \
+      -d "$payload" \
+      "$YSU_LLM_API_URL" 2>/dev/null) || true
+
+    local content=""
+    [[ -n "$response" ]] && content=$(_ysu_json_extract_content "$response")
+
+    # Trim whitespace
+    content="${content#"${content%%[! ]*}"}"
+    content="${content%"${content##*[! ]}"}"
+
+    if [[ -n "$content" && "${(L)content}" != "none" && "${(L)content}" != "none." ]]; then
+      echo "$content" > "$tmp_file"
+    else
+      : > "$tmp_file"
+    fi
+    touch "${tmp_file}.done"
+  } &!
+}
+
+_ysu_llm_check_async() {
+  [[ -z "$_YSU_LLM_ASYNC_FILE" ]] && return
+
+  # Check if background process finished
+  [[ ! -f "${_YSU_LLM_ASYNC_FILE}.done" ]] && return
+
+  # Read result
+  local result=""
+  [[ -s "$_YSU_LLM_ASYNC_FILE" ]] && result=$(<"$_YSU_LLM_ASYNC_FILE")
+
+  # Cache the result
+  local cache_key
+  cache_key=$(_ysu_llm_cache_key "$_YSU_LLM_ASYNC_CMD")
+  local cache_file="${YSU_LLM_CACHE_DIR}/${cache_key}"
+  if [[ -n "$result" ]]; then
+    echo "$result" > "$cache_file"
+    echo -e "$(_ysu_format "$YSU_LLM_PREFIX" "$result")"
+  else
+    : > "$cache_file"
+  fi
+
+  # Cleanup
+  rm -f "$_YSU_LLM_ASYNC_FILE" "${_YSU_LLM_ASYNC_FILE}.done" 2>/dev/null
+  _YSU_LLM_ASYNC_FILE=""
+  _YSU_LLM_ASYNC_CMD=""
+}
+
+# ============================================================================
 # Hooks: collect in preexec, display in precmd
 # ============================================================================
 
@@ -318,6 +464,9 @@ _ysu_preexec() {
 
   # Skip empty commands
   [[ -z "$typed_command" ]] && return
+
+  # Save full command for LLM evaluation in precmd
+  _YSU_LLM_PENDING_CMD="$typed_command"
 
   # Strip sudo prefix for matching — check the actual command, not sudo itself
   local check_command="$typed_command"
@@ -351,12 +500,140 @@ _ysu_preexec() {
 }
 
 _ysu_precmd() {
+  local last_exit=$?
+
   # Flush any remaining buffered messages (fallback)
-  [[ ${#_YSU_MESSAGES} -eq 0 ]] && return
-  _ysu_flush
+  if [[ ${#_YSU_MESSAGES} -gt 0 ]]; then
+    _ysu_flush
+  fi
+
+  # LLM: display completed async result from previous command
+  [[ "$YSU_LLM_ENABLED" == "true" ]] && _ysu_llm_check_async
+
+  # LLM: evaluate triggers for the just-finished command
+  if [[ "$YSU_LLM_ENABLED" == "true" && -n "$_YSU_LLM_PENDING_CMD" ]]; then
+    if _ysu_llm_should_trigger "$_YSU_LLM_PENDING_CMD" "$last_exit"; then
+      local cache_key
+      cache_key=$(_ysu_llm_cache_key "$_YSU_LLM_PENDING_CMD")
+      local cache_file="${YSU_LLM_CACHE_DIR}/${cache_key}"
+
+      if [[ -f "$cache_file" ]]; then
+        # Cache hit — show immediately (or skip if empty = no suggestion)
+        local cached=""
+        [[ -s "$cache_file" ]] && cached=$(<"$cache_file")
+        [[ -n "$cached" ]] && echo -e "$(_ysu_format "$YSU_LLM_PREFIX" "$cached")"
+      else
+        # Cache miss — fire async request
+        _ysu_llm_query_async "$_YSU_LLM_PENDING_CMD"
+      fi
+    fi
+    _YSU_LLM_PENDING_CMD=""
+  fi
 }
 
 # Register hooks (append, don't overwrite)
 autoload -Uz add-zsh-hook
 add-zsh-hook preexec _ysu_preexec
 add-zsh-hook precmd _ysu_precmd
+
+# ============================================================================
+# Interactive configuration: ysu command
+# ============================================================================
+
+ysu() {
+  case "${1:-help}" in
+    config) _ysu_config_wizard ;;
+    cache)
+      case "${2:-help}" in
+        clear)
+          rm -f "${YSU_LLM_CACHE_DIR}"/* 2>/dev/null
+          rm -f "${YSU_LLM_CACHE_DIR}"/.pending.* 2>/dev/null
+          echo "LLM cache cleared."
+          ;;
+        size)
+          local count
+          count=$(find "$YSU_LLM_CACHE_DIR" -maxdepth 1 -type f ! -name '.*' 2>/dev/null | wc -l | tr -d ' ')
+          echo "${count} cached suggestions"
+          ;;
+        *) echo "Usage: ysu cache [clear|size]" ;;
+      esac
+      ;;
+    *)
+      echo "Usage: ysu <command>"
+      echo "Commands:"
+      echo "  config    Configure you-should-use interactively"
+      echo "  cache     Manage LLM suggestion cache"
+      ;;
+  esac
+}
+
+_ysu_config_wizard() {
+  local config_dir="${XDG_CONFIG_HOME:-$HOME/.config}/ysu"
+  local config_file="$config_dir/config.zsh"
+  local choice
+
+  while true; do
+    echo ""
+    echo "\e[1mYou Should Use — Configuration\e[0m"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "  1) Alias Reminders:       $([[ "$YSU_REMINDER_ENABLED" == "true" ]] && echo '\e[32m✓ enabled\e[0m' || echo '\e[31m✗ disabled\e[0m')"
+    echo "  2) Modern Suggestions:    $([[ "$YSU_SUGGEST_ENABLED" == "true" ]] && echo '\e[32m✓ enabled\e[0m' || echo '\e[31m✗ disabled\e[0m')"
+    echo "  3) LLM Suggestions:       $([[ "$YSU_LLM_ENABLED" == "true" ]] && echo '\e[32m✓ enabled\e[0m' || echo '\e[31m✗ disabled\e[0m')"
+    echo "  4) Tip Probability:       ${YSU_PROBABILITY}%"
+    echo "  5) Cooldown:              ${YSU_COOLDOWN}s"
+    echo "  6) LLM Settings           →"
+    echo ""
+    echo -n "  Select (1-6, s=save, q=quit): "
+    read -r choice
+
+    case "$choice" in
+      1) [[ "$YSU_REMINDER_ENABLED" == "true" ]] && YSU_REMINDER_ENABLED=false || YSU_REMINDER_ENABLED=true ;;
+      2) [[ "$YSU_SUGGEST_ENABLED" == "true" ]] && YSU_SUGGEST_ENABLED=false || YSU_SUGGEST_ENABLED=true ;;
+      3) [[ "$YSU_LLM_ENABLED" == "true" ]] && YSU_LLM_ENABLED=false || YSU_LLM_ENABLED=true ;;
+      4) echo -n "  Probability (1-100): "; read -r YSU_PROBABILITY ;;
+      5) echo -n "  Cooldown (seconds): "; read -r YSU_COOLDOWN ;;
+      6) _ysu_config_llm ;;
+      s|S) _ysu_config_save "$config_dir" "$config_file" ;;
+      q|Q) echo "  Settings applied to current session."; return ;;
+    esac
+  done
+}
+
+_ysu_config_llm() {
+  local choice
+  while true; do
+    echo ""
+    echo "\e[1mLLM Settings\e[0m"
+    echo "━━━━━━━━━━━━"
+    echo "  a) API URL:   $YSU_LLM_API_URL"
+    echo "  b) API Key:   $([[ -n "$YSU_LLM_API_KEY" ]] && echo "••••${YSU_LLM_API_KEY: -4}" || echo '(not set)')"
+    echo "  c) Model:     $YSU_LLM_MODEL"
+    echo ""
+    echo -n "  Select (a-c, q=back): "
+    read -r choice
+
+    case "$choice" in
+      a) echo -n "  API URL: "; read -r YSU_LLM_API_URL ;;
+      b) echo -n "  API Key: "; read -r YSU_LLM_API_KEY ;;
+      c) echo -n "  Model: "; read -r YSU_LLM_MODEL ;;
+      q|Q) return ;;
+    esac
+  done
+}
+
+_ysu_config_save() {
+  local config_dir="$1" config_file="$2"
+  mkdir -p "$config_dir"
+  cat > "$config_file" <<EOF
+# You Should Use — Configuration (generated by ysu config)
+YSU_REMINDER_ENABLED=$YSU_REMINDER_ENABLED
+YSU_SUGGEST_ENABLED=$YSU_SUGGEST_ENABLED
+YSU_LLM_ENABLED=$YSU_LLM_ENABLED
+YSU_PROBABILITY=$YSU_PROBABILITY
+YSU_COOLDOWN=$YSU_COOLDOWN
+YSU_LLM_API_URL="$YSU_LLM_API_URL"
+YSU_LLM_API_KEY="$YSU_LLM_API_KEY"
+YSU_LLM_MODEL="$YSU_LLM_MODEL"
+EOF
+  echo "  Saved to $config_file"
+}
