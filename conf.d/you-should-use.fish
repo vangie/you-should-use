@@ -695,7 +695,7 @@ function _ysu_status
     echo -e "  Modern Suggestions: "(test "$YSU_SUGGEST_ENABLED" = true; and echo -e $check' enabled'; or echo -e $cross' disabled')
     echo -e "  Prefix:             \"$YSU_PREFIX\""
     echo -e "  Probability:        $YSU_PROBABILITY%"
-    echo -e "  Cooldown:           ${YSU_COOLDOWN}s"
+    echo -e "  Cooldown:           "$YSU_COOLDOWN"s"
     if test -n "$YSU_IGNORE_ALIASES"
         echo -e "  Ignored Aliases:    $YSU_IGNORE_ALIASES"
     end
@@ -786,7 +786,7 @@ function _ysu_config_wizard
         echo -e "  2) Modern Suggestions:    "(test "$YSU_SUGGEST_ENABLED" = true; and echo -e "\e[32m✓ enabled\e[0m"; or echo -e "\e[31m✗ disabled\e[0m")
         echo -e "  3) LLM Suggestions:       "(test "$YSU_LLM_ENABLED" = true; and echo -e "\e[32m✓ enabled\e[0m"; or echo -e "\e[31m✗ disabled\e[0m")
         echo "  4) Tip Probability:       $YSU_PROBABILITY%"
-        echo "  5) Cooldown:              ${YSU_COOLDOWN}s"
+        echo "  5) Cooldown:              "$YSU_COOLDOWN"s"
         echo "  6) LLM Settings           →"
         echo ""
         read -P "  Select (1-6, s=save, q=quit): " choice
