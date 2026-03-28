@@ -6,7 +6,7 @@ A shell plugin that helps you work smarter by:
 2. **Modern Command Suggestions** — When you use legacy commands (cat, ls, find, grep, etc.), it suggests modern Rust/Go alternatives if they're installed
 3. **AI-Powered Suggestions** — Uses a local LLM (via Ollama) to suggest better ways to write your commands
 
-> Currently supports **Zsh** and **Fish**. Bash support is planned.
+> Supports **Zsh**, **Fish**, and **Bash**.
 
 ## Demos
 
@@ -95,6 +95,17 @@ omf install https://github.com/vangie/you-should-use
 git clone https://github.com/vangie/you-should-use ~/.you-should-use
 cp ~/.you-should-use/conf.d/you-should-use.fish ~/.config/fish/conf.d/
 ```
+
+### Bash
+
+Add to your `~/.bashrc`:
+
+```bash
+git clone https://github.com/vangie/you-should-use ~/.you-should-use
+echo 'source ~/.you-should-use/you-should-use.plugin.bash' >> ~/.bashrc
+```
+
+> **Note:** Requires Bash 3.2+. Uses `DEBUG` trap for pre-execution hooks and `PROMPT_COMMAND` for post-execution processing.
 
 ## Configuration
 
@@ -242,7 +253,7 @@ ysu cache     # Manage LLM suggestion cache (clear, size)
 
 ## How It Works
 
-The plugin hooks into the shell's pre-execution mechanism (`preexec` in Zsh, `fish_preexec` event in Fish) to intercept commands before they run. It:
+The plugin hooks into the shell's pre-execution mechanism (`preexec` in Zsh, `fish_preexec` event in Fish, `DEBUG` trap in Bash) to intercept commands before they run. It:
 
 1. Checks if you typed a command that matches an existing alias expansion (alias reminder)
 2. Checks if the command has a known modern alternative that is installed (tool suggestion)
@@ -258,7 +269,7 @@ All checks respect the probability and cooldown settings to avoid being annoying
 - [x] Install command hints
 - [x] Custom message templates
 - [x] Multi-command workflow analysis
-- [ ] Bash support
+- [x] Bash support
 
 ## License
 
