@@ -908,6 +908,7 @@ ysu() {
       ;;
     status) _ysu_status ;;
     doctor) _ysu_doctor ;;
+    discover) shift; _ysu_discover "$@" ;;
     *)
       echo "Usage: ysu <command>"
       echo "Commands:"
@@ -915,6 +916,7 @@ ysu() {
       echo "  cache     Manage LLM suggestion cache"
       echo "  status    Show current configuration and statistics"
       echo "  doctor    Run diagnostics and check for issues"
+      echo "  discover  Analyze history and suggest aliases"
       ;;
   esac
 }
@@ -1012,6 +1014,97 @@ _ysu_status() {
     echo -e "  (using defaults — run \e[1;33mysu config\e[0m to customize)"
   fi
   echo ""
+}
+
+_ysu_discover() {
+  local min_count=${1:-5}
+  local min_words=2
+  local bold='\e[1m' reset='\e[0m' cyan='\e[1;36m' yellow='\e[1;33m' green='\e[32m'
+
+  echo ""
+  echo -e "${bold}🔍 Alias Discovery${reset}"
+  echo "─────────────────────────"
+  echo -e "Analyzing history for commands used >= ${min_count} times..."
+  echo ""
+
+  # Get history file
+  local histfile="${HISTFILE:-$HOME/.bash_history}"
+  if [[ ! -f "$histfile" ]]; then
+    echo "No history file found at ${histfile}"
+    return 1
+  fi
+
+  # Get existing aliases for filtering
+  local existing_aliases
+  existing_aliases=$(alias 2>/dev/null | sed "s/^alias //" | cut -d= -f2 | tr -d "'")
+
+  # Count command prefixes (2 and 3 word)
+  # Using sort | uniq -c | sort -rn for efficiency (portable)
+  local results
+  results=$(
+    while IFS= read -r line; do
+      # Skip empty lines
+      [[ -z "$line" ]] && continue
+      # Split into words
+      read -ra words <<< "$line"
+      local wc=${#words[@]}
+      (( wc < min_words )) && continue
+      # 2-word prefix
+      local p2="${words[0]} ${words[1]}"
+      [[ "$p2" == _ysu_* || "$p2" == "cd "* || "$p2" == "echo "* ]] && continue
+      echo "$p2"
+      # 3-word prefix
+      if (( wc >= 3 )); then
+        echo "${words[0]} ${words[1]} ${words[2]}"
+      fi
+    done < "$histfile" | sort | uniq -c | sort -rn
+  )
+
+  # Display suggestions
+  local found=0
+  while IFS= read -r line; do
+    [[ -z "$line" ]] && continue
+    # Parse "  count prefix"
+    local count prefix
+    count=$(echo "$line" | awk '{print $1}')
+    prefix=$(echo "$line" | awk '{$1=""; print}' | sed 's/^ //')
+    (( count < min_count )) && continue
+
+    # Skip if already aliased
+    echo "$existing_aliases" | grep -qF "$prefix" && continue
+
+    local suggestion
+    suggestion=$(_ysu_suggest_alias_name "$prefix")
+    echo -e "  ${cyan}${prefix}${reset}  (used ${yellow}${count}${reset} times)"
+    echo -e "    ${green}alias ${suggestion}='${prefix}'${reset}"
+    echo ""
+    ((found++))
+    (( found >= 30 )) && break
+  done <<< "$results"
+
+  if (( found == 0 )); then
+    echo "No alias suggestions found. Try lowering the threshold: ysu discover 3"
+  fi
+  echo ""
+}
+
+_ysu_suggest_alias_name() {
+  local cmd="$1"
+  local name=""
+  local word
+  read -ra words <<< "$cmd"
+  for word in "${words[@]}"; do
+    # Skip flags
+    [[ "$word" == -* ]] && continue
+    name+="${word:0:1}"
+  done
+  if [[ ${#name} -lt 2 ]]; then
+    name=""
+    for word in "${words[@]}"; do
+      name+="${word:0:1}"
+    done
+  fi
+  echo "${name}" | tr '[:upper:]' '[:lower:]'
 }
 
 _ysu_doctor() {

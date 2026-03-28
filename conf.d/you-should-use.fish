@@ -927,6 +927,8 @@ function ysu
             _ysu_status
         case doctor
             _ysu_doctor
+        case discover
+            _ysu_discover $argv[2..-1]
         case '*'
             echo "Usage: ysu <command>"
             echo "Commands:"
@@ -934,6 +936,7 @@ function ysu
             echo "  cache     Manage LLM suggestion cache"
             echo "  status    Show current configuration and statistics"
             echo "  doctor    Run diagnostics and check for issues"
+            echo "  discover  Analyze history and suggest aliases"
     end
 end
 
@@ -1042,6 +1045,128 @@ function _ysu_status
         echo -e "  (using defaults — run \e[1;33mysu config\e[0m to customize)"
     end
     echo ""
+end
+
+function _ysu_discover
+    set -l min_count 5
+    if test (count $argv) -ge 1; and string match -qr '^\d+$' -- $argv[1]
+        set min_count $argv[1]
+    end
+    set -l min_words 2
+    set -l bold '\e[1m'
+    set -l reset '\e[0m'
+    set -l cyan '\e[1;36m'
+    set -l yellow '\e[1;33m'
+    set -l green '\e[32m'
+
+    echo ""
+    echo -e $bold'🔍 Alias Discovery'$reset
+    echo "─────────────────────────"
+    echo -e "Analyzing history for commands used >= $min_count times..."
+    echo ""
+
+    # Fish stores history in ~/.local/share/fish/fish_history
+    set -l histfile "$HOME/.local/share/fish/fish_history"
+    if not test -f "$histfile"
+        echo "No history file found at $histfile"
+        return 1
+    end
+
+    # Get existing abbreviations for filtering
+    set -l existing_abbrs (abbr --list 2>/dev/null)
+
+    # Parse fish history (format: "- cmd: command\n  when: timestamp")
+    # Extract commands, count 2-word and 3-word prefixes
+    set -l prefixes
+    set -l counts
+    for line in (grep '^- cmd: ' "$histfile" | sed 's/^- cmd: //')
+        set -l words (string split ' ' -- $line)
+        test (count $words) -lt $min_words; and continue
+
+        # 2-word prefix
+        set -l p2 "$words[1] $words[2]"
+        # Skip internal functions
+        string match -q '_ysu_*' -- $p2; and continue
+        string match -q 'cd *' -- $p2; and continue
+        string match -q 'echo *' -- $p2; and continue
+
+        set -l found_idx 0
+        for i in (seq (count $prefixes))
+            if test "$prefixes[$i]" = "$p2"
+                set found_idx $i
+                break
+            end
+        end
+        if test "$found_idx" -gt 0
+            set counts[$found_idx] (math $counts[$found_idx] + 1)
+        else
+            set -a prefixes "$p2"
+            set -a counts 1
+        end
+
+        # 3-word prefix
+        if test (count $words) -ge 3
+            set -l p3 "$words[1] $words[2] $words[3]"
+            set found_idx 0
+            for i in (seq (count $prefixes))
+                if test "$prefixes[$i]" = "$p3"
+                    set found_idx $i
+                    break
+                end
+            end
+            if test "$found_idx" -gt 0
+                set counts[$found_idx] (math $counts[$found_idx] + 1)
+            else
+                set -a prefixes "$p3"
+                set -a counts 1
+            end
+        end
+    end
+
+    # Display suggestions
+    set -l found 0
+    for i in (seq (count $prefixes))
+        test "$counts[$i]" -lt "$min_count"; and continue
+
+        # Skip if already abbreviated
+        set -l skip false
+        for ab in $existing_abbrs
+            if test "$ab" = "$prefixes[$i]"
+                set skip true
+                break
+            end
+        end
+        test "$skip" = true; and continue
+
+        set -l suggestion (_ysu_suggest_alias_name "$prefixes[$i]")
+        echo -e "  $cyan$prefixes[$i]$reset  (used $yellow$counts[$i]$reset times)"
+        echo -e "    $green""abbr -a $suggestion '$prefixes[$i]'$reset"
+        echo ""
+        set found (math $found + 1)
+    end
+
+    if test "$found" -eq 0
+        echo "No alias suggestions found. Try lowering the threshold: ysu discover 3"
+    end
+    echo ""
+end
+
+function _ysu_suggest_alias_name
+    set -l cmd $argv[1]
+    set -l words (string split ' ' -- $cmd)
+    set -l name ""
+    for word in $words
+        # Skip flags
+        string match -q '-*' -- $word; and continue
+        set name $name(string sub -l 1 -- $word)
+    end
+    if test (string length -- "$name") -lt 2
+        set name ""
+        for word in $words
+            set name $name(string sub -l 1 -- $word)
+        end
+    end
+    echo (string lower -- $name)
 end
 
 function _ysu_doctor

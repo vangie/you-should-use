@@ -940,6 +940,7 @@ ysu() {
       ;;
     status) _ysu_status ;;
     doctor) _ysu_doctor ;;
+    discover) _ysu_discover "${@:2}" ;;
     *)
       echo "Usage: ysu <command>"
       echo "Commands:"
@@ -947,6 +948,7 @@ ysu() {
       echo "  cache     Manage LLM suggestion cache"
       echo "  status    Show current configuration and statistics"
       echo "  doctor    Run diagnostics and check for issues"
+      echo "  discover  Analyze history and suggest aliases"
       ;;
   esac
 }
@@ -1053,6 +1055,99 @@ _ysu_status() {
     echo -e "  (using defaults — run \e[1;33mysu config\e[0m to customize)"
   fi
   echo ""
+}
+
+_ysu_discover() {
+  local min_count=${1:-5}  # minimum occurrences to suggest
+  local min_words=2        # minimum words in command to be worth aliasing
+  local bold='\e[1m' reset='\e[0m' cyan='\e[1;36m' yellow='\e[1;33m' green='\e[32m'
+
+  echo ""
+  echo -e "${bold}🔍 Alias Discovery${reset}"
+  echo "─────────────────────────"
+  echo -e "Analyzing history for commands used >= ${min_count} times..."
+  echo ""
+
+  # Get history file
+  local histfile="${HISTFILE:-$HOME/.zsh_history}"
+  if [[ ! -f "$histfile" ]]; then
+    echo "No history file found at ${histfile}"
+    return 1
+  fi
+
+  # Get existing aliases and abbreviations for filtering
+  local -A existing_aliases
+  local alias_name alias_value
+  for alias_name alias_value in ${(kv)aliases}; do
+    existing_aliases[$alias_value]="$alias_name"
+  done
+
+  # Parse history: extract command prefixes (first 2-3 words), count them
+  # Zsh history format: ": timestamp:0;command" or just "command"
+  local -A cmd_counts
+  local line cmd prefix
+  while IFS= read -r line; do
+    # Strip zsh extended history format
+    cmd="${line#*;}"
+    [[ -z "$cmd" ]] && continue
+    # Skip very short commands
+    local words=( ${(z)cmd} )
+    (( ${#words} < min_words )) && continue
+    # Use first 2 words as prefix (covers 90% of cases like "git checkout")
+    prefix="${words[1]} ${words[2]}"
+    # Skip if it starts with internal functions or common builtins
+    [[ "$prefix" == _ysu_* || "$prefix" == "cd "* || "$prefix" == "echo "* ]] && continue
+    cmd_counts[$prefix]=$(( ${cmd_counts[$prefix]:-0} + 1 ))
+    # Also try 3-word prefix for things like "git checkout -b"
+    if (( ${#words} >= 3 )); then
+      local prefix3="${words[1]} ${words[2]} ${words[3]}"
+      cmd_counts[$prefix3]=$(( ${cmd_counts[$prefix3]:-0} + 1 ))
+    fi
+  done < "$histfile"
+
+  # Sort by count (descending) and display suggestions
+  local found=0
+  local prefix count
+  for prefix count in ${(kv)cmd_counts}; do
+    (( count < min_count )) && continue
+
+    # Skip if already aliased
+    [[ -n "${existing_aliases[$prefix]}" ]] && continue
+
+    # Generate alias name suggestion
+    local suggestion=$(_ysu_suggest_alias_name "$prefix")
+
+    echo -e "  ${cyan}${prefix}${reset}  (used ${yellow}${count}${reset} times)"
+    echo -e "    ${green}alias ${suggestion}='${prefix}'${reset}"
+    echo ""
+    ((found++))
+  done | sort -t'(' -k2 -rn | head -30
+
+  if (( found == 0 )); then
+    echo "No alias suggestions found. Try lowering the threshold: ysu discover 3"
+  fi
+  echo ""
+}
+
+_ysu_suggest_alias_name() {
+  local cmd="$1"
+  local words=( ${(z)cmd} )
+  local name=""
+  local word
+  for word in "${words[@]}"; do
+    # Skip flags
+    [[ "$word" == -* ]] && continue
+    # Take first letter of each word
+    name+="${word[1]}"
+  done
+  # If too short, use first letters of all words including flags
+  if (( ${#name} < 2 )); then
+    name=""
+    for word in "${words[@]}"; do
+      name+="${word[1]}"
+    done
+  fi
+  echo "${(L)name}"
 }
 
 _ysu_doctor() {
