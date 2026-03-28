@@ -48,6 +48,37 @@ run_bash() {
   [[ "$output" == *"status"* ]]
 }
 
+@test "bash: ysu status shows package manager" {
+  run_bash '_ysu_status'
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Package Manager"* ]]
+}
+
+@test "bash: platform detection sets _YSU_PKG_MANAGER" {
+  run_bash 'echo "$_YSU_PKG_MANAGER"'
+  [ "$status" -eq 0 ]
+  [[ -n "$output" ]]
+  [[ "$output" != "unknown" ]]
+}
+
+@test "bash: platform detection sets _YSU_PKG_INSTALL" {
+  run_bash 'echo "$_YSU_PKG_INSTALL"'
+  [ "$status" -eq 0 ]
+  [[ -n "$output" ]]
+}
+
+@test "bash: _ysu_get_pkg_name resolves overrides" {
+  run_bash 'echo "$(_ysu_get_pkg_name rg)"'
+  [ "$status" -eq 0 ]
+  [[ "$output" == "ripgrep" ]]
+}
+
+@test "bash: _ysu_get_pkg_name returns tool name when no override" {
+  run_bash 'echo "$(_ysu_get_pkg_name bat)"'
+  [ "$status" -eq 0 ]
+  [[ "$output" == "bat" ]]
+}
+
 @test "bash: ysu status shows multi-command info when mode is both" {
   run_bash '
     YSU_LLM_MODE="both"

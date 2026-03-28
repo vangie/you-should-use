@@ -156,45 +156,92 @@ if [[ -z "${YSU_MODERN_KEYS+x}" ]]; then
   )
 fi
 
+# ============================================================================
+# Platform detection for install hints
+# ============================================================================
+
+_ysu_detect_pkg_manager() {
+  # WSL detection
+  if [[ -f /proc/version ]] && grep -qi microsoft /proc/version 2>/dev/null; then
+    _YSU_IS_WSL=true
+  else
+    _YSU_IS_WSL=false
+  fi
+
+  if command -v brew &>/dev/null; then
+    _YSU_PKG_MANAGER="brew"
+    _YSU_PKG_INSTALL="brew install"
+  elif command -v apt &>/dev/null; then
+    _YSU_PKG_MANAGER="apt"
+    _YSU_PKG_INSTALL="sudo apt install"
+  elif command -v pacman &>/dev/null; then
+    _YSU_PKG_MANAGER="pacman"
+    _YSU_PKG_INSTALL="sudo pacman -S"
+  elif command -v dnf &>/dev/null; then
+    _YSU_PKG_MANAGER="dnf"
+    _YSU_PKG_INSTALL="sudo dnf install"
+  elif command -v zypper &>/dev/null; then
+    _YSU_PKG_MANAGER="zypper"
+    _YSU_PKG_INSTALL="sudo zypper install"
+  elif command -v apk &>/dev/null; then
+    _YSU_PKG_MANAGER="apk"
+    _YSU_PKG_INSTALL="apk add"
+  elif command -v pkg &>/dev/null; then
+    _YSU_PKG_MANAGER="pkg"
+    _YSU_PKG_INSTALL="pkg install"
+  else
+    _YSU_PKG_MANAGER="unknown"
+    _YSU_PKG_INSTALL=""
+  fi
+}
+_ysu_detect_pkg_manager
+
+# Package name overrides per manager (parallel arrays)
+_YSU_PKG_OVERRIDE_KEYS_brew=(rg ag delta)
+_YSU_PKG_OVERRIDE_VALS_brew=(ripgrep the_silver_searcher git-delta)
+
+_YSU_PKG_OVERRIDE_KEYS_apt=(rg ag delta fd dust)
+_YSU_PKG_OVERRIDE_VALS_apt=(ripgrep silversearcher-ag git-delta fd-find du-dust)
+
+_YSU_PKG_OVERRIDE_KEYS_pacman=(rg ag delta)
+_YSU_PKG_OVERRIDE_VALS_pacman=(ripgrep the_silver_searcher git-delta)
+
+_YSU_PKG_OVERRIDE_KEYS_dnf=(rg ag delta)
+_YSU_PKG_OVERRIDE_VALS_dnf=(ripgrep the_silver_searcher git-delta)
+
+_ysu_get_pkg_name() {
+  local tool="$1"
+  local keys_var="_YSU_PKG_OVERRIDE_KEYS_${_YSU_PKG_MANAGER}"
+  local vals_var="_YSU_PKG_OVERRIDE_VALS_${_YSU_PKG_MANAGER}"
+  # Use eval for indirect array access (Bash 3.2 compat)
+  local keys_count
+  eval "keys_count=\${#${keys_var}[@]}" 2>/dev/null || { echo "$tool"; return; }
+  local i
+  for (( i=0; i<keys_count; i++ )); do
+    local k v
+    eval "k=\${${keys_var}[$i]}"
+    if [[ "$k" == "$tool" ]]; then
+      eval "v=\${${vals_var}[$i]}"
+      echo "$v"
+      return
+    fi
+  done
+  echo "$tool"
+}
+
 # Install command hints (parallel arrays)
+# Auto-generated based on detected package manager
 if [[ -z "${YSU_INSTALL_KEYS+x}" ]]; then
   YSU_INSTALL_KEYS=(
     bat eza lsd fd rg ag dust ncdu btop htop procs delta colordiff sd httpie curlie gping dog tldr zoxide duf hexyl just xh hyperfine mcfly atuin glow tokei broot mtr zellij
   )
-  YSU_INSTALL_VALS=(
-    "brew install bat"
-    "brew install eza"
-    "brew install lsd"
-    "brew install fd"
-    "brew install ripgrep"
-    "brew install the_silver_searcher"
-    "brew install dust"
-    "brew install ncdu"
-    "brew install btop"
-    "brew install htop"
-    "brew install procs"
-    "brew install git-delta"
-    "brew install colordiff"
-    "brew install sd"
-    "brew install httpie"
-    "brew install curlie"
-    "brew install gping"
-    "brew install dog"
-    "brew install tldr"
-    "brew install zoxide"
-    "brew install duf"
-    "brew install hexyl"
-    "brew install just"
-    "brew install xh"
-    "brew install hyperfine"
-    "brew install mcfly"
-    "brew install atuin"
-    "brew install glow"
-    "brew install tokei"
-    "brew install broot"
-    "brew install mtr"
-    "brew install zellij"
-  )
+  YSU_INSTALL_VALS=()
+  if [[ -n "$_YSU_PKG_INSTALL" ]]; then
+    for _ysu_t in "${YSU_INSTALL_KEYS[@]}"; do
+      YSU_INSTALL_VALS+=("${_YSU_PKG_INSTALL} $(_ysu_get_pkg_name "$_ysu_t")")
+    done
+    unset _ysu_t
+  fi
 fi
 
 # ============================================================================
@@ -885,6 +932,7 @@ _ysu_status() {
   echo -e "  Probability:        ${YSU_PROBABILITY}%"
   echo -e "  Cooldown:           ${YSU_COOLDOWN}s"
   echo -e "  Install Hints:      $([[ "$YSU_INSTALL_HINT" == "true" ]] && echo "${check} enabled" || echo "${cross} disabled")"
+  echo -e "  Package Manager:    ${_YSU_PKG_MANAGER}$([[ "$_YSU_IS_WSL" == "true" ]] && echo " (WSL)")"
   if [[ "$YSU_MESSAGE_FORMAT" != "{prefix} {arrow} {message}" ]]; then
     echo -e "  Message Format:     ${YSU_MESSAGE_FORMAT}"
   fi

@@ -142,43 +142,93 @@ if not set -q YSU_MODERN_KEYS
         "zellij:Modern terminal multiplexer with intuitive UI"
 end
 
+# ============================================================================
+# Platform detection for install hints
+# ============================================================================
+
+function _ysu_detect_pkg_manager
+    # WSL detection
+    if test -f /proc/version; and grep -qi microsoft /proc/version 2>/dev/null
+        set -g _YSU_IS_WSL true
+    else
+        set -g _YSU_IS_WSL false
+    end
+
+    if command -q brew
+        set -g _YSU_PKG_MANAGER brew
+        set -g _YSU_PKG_INSTALL "brew install"
+    else if command -q apt
+        set -g _YSU_PKG_MANAGER apt
+        set -g _YSU_PKG_INSTALL "sudo apt install"
+    else if command -q pacman
+        set -g _YSU_PKG_MANAGER pacman
+        set -g _YSU_PKG_INSTALL "sudo pacman -S"
+    else if command -q dnf
+        set -g _YSU_PKG_MANAGER dnf
+        set -g _YSU_PKG_INSTALL "sudo dnf install"
+    else if command -q zypper
+        set -g _YSU_PKG_MANAGER zypper
+        set -g _YSU_PKG_INSTALL "sudo zypper install"
+    else if command -q apk
+        set -g _YSU_PKG_MANAGER apk
+        set -g _YSU_PKG_INSTALL "apk add"
+    else if command -q pkg
+        set -g _YSU_PKG_MANAGER pkg
+        set -g _YSU_PKG_INSTALL "pkg install"
+    else
+        set -g _YSU_PKG_MANAGER unknown
+        set -g _YSU_PKG_INSTALL ""
+    end
+end
+_ysu_detect_pkg_manager
+
+# Package name overrides per manager (tool → package_name)
+# Parallel arrays: _YSU_PKG_OVERRIDE_KEYS_<mgr> / _YSU_PKG_OVERRIDE_VALS_<mgr>
+set -g _YSU_PKG_OVERRIDE_KEYS_brew rg ag delta
+set -g _YSU_PKG_OVERRIDE_VALS_brew ripgrep the_silver_searcher git-delta
+
+set -g _YSU_PKG_OVERRIDE_KEYS_apt rg ag delta fd dust
+set -g _YSU_PKG_OVERRIDE_VALS_apt ripgrep silversearcher-ag git-delta fd-find du-dust
+
+set -g _YSU_PKG_OVERRIDE_KEYS_pacman rg ag delta
+set -g _YSU_PKG_OVERRIDE_VALS_pacman ripgrep the_silver_searcher git-delta
+
+set -g _YSU_PKG_OVERRIDE_KEYS_dnf rg ag delta
+set -g _YSU_PKG_OVERRIDE_VALS_dnf ripgrep the_silver_searcher git-delta
+
+function _ysu_get_pkg_name
+    set -l tool $argv[1]
+    set -l keys_var _YSU_PKG_OVERRIDE_KEYS_$_YSU_PKG_MANAGER
+    set -l vals_var _YSU_PKG_OVERRIDE_VALS_$_YSU_PKG_MANAGER
+    if set -q $keys_var
+        set -l keys $$keys_var
+        set -l vals $$vals_var
+        for i in (seq (count $keys))
+            if test "$keys[$i]" = "$tool"
+                echo "$vals[$i]"
+                return
+            end
+        end
+    end
+    echo "$tool"
+end
+
 # Install command hints (parallel lists: tool name → install command)
+# Auto-generated based on detected package manager
 if not set -q YSU_INSTALL_KEYS
     set -g YSU_INSTALL_KEYS \
         bat eza lsd fd rg ag dust ncdu btop htop procs delta colordiff sd httpie curlie gping dog tldr zoxide duf hexyl just xh hyperfine mcfly atuin glow tokei broot mtr zellij
-    set -g YSU_INSTALL_VALS \
-        "brew install bat" \
-        "brew install eza" \
-        "brew install lsd" \
-        "brew install fd" \
-        "brew install ripgrep" \
-        "brew install the_silver_searcher" \
-        "brew install dust" \
-        "brew install ncdu" \
-        "brew install btop" \
-        "brew install htop" \
-        "brew install procs" \
-        "brew install git-delta" \
-        "brew install colordiff" \
-        "brew install sd" \
-        "brew install httpie" \
-        "brew install curlie" \
-        "brew install gping" \
-        "brew install dog" \
-        "brew install tldr" \
-        "brew install zoxide" \
-        "brew install duf" \
-        "brew install hexyl" \
-        "brew install just" \
-        "brew install xh" \
-        "brew install hyperfine" \
-        "brew install mcfly" \
-        "brew install atuin" \
-        "brew install glow" \
-        "brew install tokei" \
-        "brew install broot" \
-        "brew install mtr" \
-        "brew install zellij"
+    if test -n "$_YSU_PKG_INSTALL"
+        set -g YSU_INSTALL_VALS
+        for _t in $YSU_INSTALL_KEYS
+            set -a YSU_INSTALL_VALS "$_YSU_PKG_INSTALL "(_ysu_get_pkg_name $_t)
+        end
+    else
+        set -g YSU_INSTALL_VALS
+        for _t in $YSU_INSTALL_KEYS
+            set -a YSU_INSTALL_VALS ""
+        end
+    end
 end
 
 # ============================================================================
@@ -904,6 +954,7 @@ function _ysu_status
     echo -e "  Probability:        $YSU_PROBABILITY%"
     echo -e "  Cooldown:           "$YSU_COOLDOWN"s"
     echo -e "  Install Hints:      "(test "$YSU_INSTALL_HINT" = true; and echo -e $check' enabled'; or echo -e $cross' disabled')
+    echo -e "  Package Manager:    $_YSU_PKG_MANAGER"(test "$_YSU_IS_WSL" = true; and echo " (WSL)"; or echo "")
     if test "$YSU_MESSAGE_FORMAT" != "{prefix} {arrow} {message}"
         echo -e "  Message Format:     $YSU_MESSAGE_FORMAT"
     end

@@ -32,6 +32,26 @@ strip_ansi() {
   [[ "$clean" == *"Core Settings:"* ]]
 }
 
+@test "ysu status shows package manager" {
+  run_zsh '_ysu_status'
+  [ "$status" -eq 0 ]
+  clean=$(strip_ansi "$output")
+  [[ "$clean" == *"Package Manager:"* ]]
+}
+
+@test "platform detection sets _YSU_PKG_MANAGER" {
+  run_zsh 'echo "$_YSU_PKG_MANAGER"'
+  [ "$status" -eq 0 ]
+  [[ -n "$output" ]]
+  [[ "$output" != "unknown" ]]
+}
+
+@test "_ysu_get_pkg_name resolves overrides" {
+  run_zsh 'echo "$(_ysu_get_pkg_name rg)"'
+  [ "$status" -eq 0 ]
+  [[ "$output" == "ripgrep" ]]
+}
+
 @test "ysu status shows LLM Settings section" {
   run_zsh '_ysu_status'
   [ "$status" -eq 0 ]

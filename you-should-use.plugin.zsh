@@ -156,43 +156,87 @@ if [[ ${#YSU_MODERN_COMMANDS} -eq 0 ]]; then
   )
 fi
 
+# ============================================================================
+# Platform detection for install hints
+# ============================================================================
+
+_ysu_detect_pkg_manager() {
+  # WSL detection
+  if [[ -f /proc/version ]] && grep -qi microsoft /proc/version 2>/dev/null; then
+    typeset -g _YSU_IS_WSL=true
+  else
+    typeset -g _YSU_IS_WSL=false
+  fi
+
+  if command -v brew &>/dev/null; then
+    typeset -g _YSU_PKG_MANAGER="brew"
+    typeset -g _YSU_PKG_INSTALL="brew install"
+  elif command -v apt &>/dev/null; then
+    typeset -g _YSU_PKG_MANAGER="apt"
+    typeset -g _YSU_PKG_INSTALL="sudo apt install"
+  elif command -v pacman &>/dev/null; then
+    typeset -g _YSU_PKG_MANAGER="pacman"
+    typeset -g _YSU_PKG_INSTALL="sudo pacman -S"
+  elif command -v dnf &>/dev/null; then
+    typeset -g _YSU_PKG_MANAGER="dnf"
+    typeset -g _YSU_PKG_INSTALL="sudo dnf install"
+  elif command -v zypper &>/dev/null; then
+    typeset -g _YSU_PKG_MANAGER="zypper"
+    typeset -g _YSU_PKG_INSTALL="sudo zypper install"
+  elif command -v apk &>/dev/null; then
+    typeset -g _YSU_PKG_MANAGER="apk"
+    typeset -g _YSU_PKG_INSTALL="apk add"
+  elif command -v pkg &>/dev/null; then
+    typeset -g _YSU_PKG_MANAGER="pkg"
+    typeset -g _YSU_PKG_INSTALL="pkg install"
+  else
+    typeset -g _YSU_PKG_MANAGER="unknown"
+    typeset -g _YSU_PKG_INSTALL=""
+  fi
+}
+_ysu_detect_pkg_manager
+
+# Package name overrides (where package name differs from tool name)
+# Format: _YSU_PKG_OVERRIDES_<manager>[tool]=package_name
+typeset -gA _YSU_PKG_OVERRIDES_brew=(
+  rg ripgrep  ag the_silver_searcher  delta git-delta
+)
+typeset -gA _YSU_PKG_OVERRIDES_apt=(
+  rg ripgrep  ag silversearcher-ag  delta git-delta
+  fd fd-find  dust du-dust  bat bat  lsd lsd
+  dog dog  procs procs
+)
+typeset -gA _YSU_PKG_OVERRIDES_pacman=(
+  rg ripgrep  ag the_silver_searcher  delta git-delta
+)
+typeset -gA _YSU_PKG_OVERRIDES_dnf=(
+  rg ripgrep  ag the_silver_searcher  delta git-delta
+)
+
+_ysu_get_pkg_name() {
+  local tool="$1"
+  local overrides_var="_YSU_PKG_OVERRIDES_${_YSU_PKG_MANAGER}"
+  local pkg
+  # Use (P) parameter expansion for indirect associative array access
+  pkg="${${(P)overrides_var}[$tool]}"
+  if [[ -n "$pkg" ]]; then
+    echo "$pkg"
+  else
+    echo "$tool"
+  fi
+}
+
 # Install command hints (tool → install command)
+# Auto-generated based on detected package manager
 typeset -gA YSU_INSTALL_COMMANDS
-if [[ ${#YSU_INSTALL_COMMANDS} -eq 0 ]]; then
-  YSU_INSTALL_COMMANDS=(
-    bat       "brew install bat"
-    eza       "brew install eza"
-    lsd       "brew install lsd"
-    fd        "brew install fd"
-    rg        "brew install ripgrep"
-    ag        "brew install the_silver_searcher"
-    dust      "brew install dust"
-    ncdu      "brew install ncdu"
-    btop      "brew install btop"
-    htop      "brew install htop"
-    procs     "brew install procs"
-    delta     "brew install git-delta"
-    colordiff "brew install colordiff"
-    sd        "brew install sd"
-    httpie    "brew install httpie"
-    curlie    "brew install curlie"
-    gping     "brew install gping"
-    dog       "brew install dog"
-    tldr      "brew install tldr"
-    zoxide    "brew install zoxide"
-    duf       "brew install duf"
-    hexyl     "brew install hexyl"
-    just      "brew install just"
-    xh        "brew install xh"
-    hyperfine "brew install hyperfine"
-    mcfly     "brew install mcfly"
-    atuin     "brew install atuin"
-    glow      "brew install glow"
-    tokei     "brew install tokei"
-    broot     "brew install broot"
-    mtr       "brew install mtr"
-    zellij    "brew install zellij"
-  )
+if [[ ${#YSU_INSTALL_COMMANDS} -eq 0 && -n "$_YSU_PKG_INSTALL" ]]; then
+  local _ysu_tools=(bat eza lsd fd rg ag dust ncdu btop htop procs delta colordiff sd httpie curlie gping dog tldr zoxide duf hexyl just xh hyperfine mcfly atuin glow tokei broot mtr zellij)
+  local _t _pkg
+  for _t in "${_ysu_tools[@]}"; do
+    _pkg=$(_ysu_get_pkg_name "$_t")
+    YSU_INSTALL_COMMANDS[$_t]="${_YSU_PKG_INSTALL} ${_pkg}"
+  done
+  unset _t _pkg _ysu_tools
 fi
 
 # ============================================================================
@@ -921,6 +965,7 @@ _ysu_status() {
   echo -e "  Probability:        ${YSU_PROBABILITY}%"
   echo -e "  Cooldown:           ${YSU_COOLDOWN}s"
   echo -e "  Install Hints:      $([[ "$YSU_INSTALL_HINT" == "true" ]] && echo "${check} enabled" || echo "${cross} disabled")"
+  echo -e "  Package Manager:    ${_YSU_PKG_MANAGER}$([[ "$_YSU_IS_WSL" == "true" ]] && echo " (WSL)")"
   if [[ "$YSU_MESSAGE_FORMAT" != "{prefix} {arrow} {message}" ]]; then
     echo -e "  Message Format:     ${YSU_MESSAGE_FORMAT}"
   fi
