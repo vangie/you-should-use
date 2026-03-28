@@ -65,7 +65,7 @@ write_output "$CAST" "$T" "nothing to commit, working tree clean"
 
 # Show the plugin reminder
 T=$(echo "$T + 0.1" | bc)
-write_raw "$CAST" "$T" "💡 \\u001b[1;93m➜\\u001b[0m You should use \\u001b[1;31mgst\\u001b[0m instead of \\u001b[1;36mgit status\\u001b[0m"
+write_raw "$CAST" "$T" "YSU \\u001b[1;93m➜\\u001b[0m You should use \\u001b[1;31mgst\\u001b[0m instead of \\u001b[1;36mgit status\\u001b[0m"
 
 # Second command
 T=$(echo "$T + 1.5" | bc)
@@ -87,7 +87,7 @@ T=$(echo "$T + 0.05" | bc)
 write_output "$CAST" "$T" "a802cc6 Add ysu status subcommand"
 
 T=$(echo "$T + 0.1" | bc)
-write_raw "$CAST" "$T" "💡 \\u001b[1;93m➜\\u001b[0m You should use \\u001b[1;31mglol\\u001b[0m instead of \\u001b[1;36mgit log --oneline\\u001b[0m"
+write_raw "$CAST" "$T" "YSU \\u001b[1;93m➜\\u001b[0m You should use \\u001b[1;31mglol\\u001b[0m instead of \\u001b[1;36mgit log --oneline\\u001b[0m"
 
 # Third command
 T=$(echo "$T + 1.5" | bc)
@@ -98,7 +98,7 @@ T=$(echo "$CURSOR + 0.3" | bc)
 printf '[%.3f, "o", "\\r\\n"]\n' "$T" >> "$CAST"
 
 T=$(echo "$T + 0.2" | bc)
-write_raw "$CAST" "$T" "💡 \\u001b[1;93m➜\\u001b[0m You should use \\u001b[1;31mgd\\u001b[0m instead of \\u001b[1;36mgit diff\\u001b[0m"
+write_raw "$CAST" "$T" "YSU \\u001b[1;93m➜\\u001b[0m You should use \\u001b[1;31mgd\\u001b[0m instead of \\u001b[1;36mgit diff\\u001b[0m"
 
 T=$(echo "$T + 1.5" | bc)
 write_prompt "$CAST" "$T"
@@ -126,7 +126,7 @@ T=$(echo "$T + 0.05" | bc)
 write_output "$CAST" "$T" "A shell plugin that helps you work smarter..."
 
 T=$(echo "$T + 0.1" | bc)
-write_raw "$CAST" "$T" "💡 \\u001b[1;93m➜\\u001b[0m You should use \\u001b[1;31mbat\\u001b[0m instead of \\u001b[1;36mcat\\u001b[0m — \\u001b[3mSyntax highlighting, line numbers, git integration\\u001b[0m"
+write_raw "$CAST" "$T" "YSU \\u001b[1;93m➜\\u001b[0m You should use \\u001b[1;31mbat\\u001b[0m instead of \\u001b[1;36mcat\\u001b[0m — \\u001b[3mSyntax highlighting, line numbers, git integration\\u001b[0m"
 
 T=$(echo "$T + 1.5" | bc)
 write_prompt "$CAST" "$T"
@@ -139,7 +139,7 @@ T=$(echo "$T + 0.2" | bc)
 write_output "$CAST" "$T" "./you-should-use.plugin.zsh"
 
 T=$(echo "$T + 0.1" | bc)
-write_raw "$CAST" "$T" "💡 \\u001b[1;93m➜\\u001b[0m You should use \\u001b[1;31mfd\\u001b[0m instead of \\u001b[1;36mfind\\u001b[0m — \\u001b[3mSimpler syntax, faster, respects .gitignore\\u001b[0m"
+write_raw "$CAST" "$T" "YSU \\u001b[1;93m➜\\u001b[0m You should use \\u001b[1;31mfd\\u001b[0m instead of \\u001b[1;36mfind\\u001b[0m — \\u001b[3mSimpler syntax, faster, respects .gitignore\\u001b[0m"
 
 T=$(echo "$T + 1.5" | bc)
 write_prompt "$CAST" "$T"
@@ -158,7 +158,7 @@ T=$(echo "$T + 0.05" | bc)
 write_output "$CAST" "$T" "-rw-r--r--   1 user  staff  4271 Mar 28 08:00 README.md"
 
 T=$(echo "$T + 0.1" | bc)
-write_raw "$CAST" "$T" "💡 \\u001b[1;93m➜\\u001b[0m You should use \\u001b[1;31meza\\u001b[0m instead of \\u001b[1;36mls\\u001b[0m — \\u001b[3mModern file listing with icons, git status, tree view\\u001b[0m"
+write_raw "$CAST" "$T" "YSU \\u001b[1;93m➜\\u001b[0m You should use \\u001b[1;31meza\\u001b[0m instead of \\u001b[1;36mls\\u001b[0m — \\u001b[3mModern file listing with icons, git status, tree view\\u001b[0m"
 
 T=$(echo "$T + 1.5" | bc)
 write_prompt "$CAST" "$T"
@@ -181,7 +181,7 @@ printf '[%.3f, "o", "\\r\\n"]\n' "$T" >> "$CAST"
 T=$(echo "$T + 0.2" | bc)
 write_output "$CAST" "$T" ""
 T=$(echo "$T + 0.05" | bc)
-write_raw "$CAST" "$T" "\\u001b[1m📊 you-should-use status\\u001b[0m"
+write_raw "$CAST" "$T" "\\u001b[1m== you-should-use status ==\\u001b[0m"
 T=$(echo "$T + 0.05" | bc)
 write_output "$CAST" "$T" "─────────────────────────"
 
@@ -192,7 +192,7 @@ write_raw "$CAST" "$T" "  \\u001b[32m✓\\u001b[0m Alias Reminders:    \\u001b[3
 T=$(echo "$T + 0.05" | bc)
 write_raw "$CAST" "$T" "  \\u001b[32m✓\\u001b[0m Modern Suggestions: \\u001b[32m✓\\u001b[0m enabled"
 T=$(echo "$T + 0.05" | bc)
-write_raw "$CAST" "$T" "  Prefix:             \\\"💡\\\""
+write_raw "$CAST" "$T" "  Prefix:             \\\"YSU\\\""
 T=$(echo "$T + 0.05" | bc)
 write_output "$CAST" "$T" "  Probability:        100%"
 T=$(echo "$T + 0.05" | bc)
@@ -255,10 +255,10 @@ T=$(echo "$T + 0.05" | bc)
 write_output "$CAST" "$T" "src/utils.js: // TODO: add input validation"
 
 T=$(echo "$T + 0.1" | bc)
-write_raw "$CAST" "$T" "💡 \\u001b[1;93m➜\\u001b[0m You should use \\u001b[1;31mrg\\u001b[0m instead of \\u001b[1;36mgrep\\u001b[0m — \\u001b[3mRipgrep - faster, respects .gitignore\\u001b[0m"
+write_raw "$CAST" "$T" "YSU \\u001b[1;93m➜\\u001b[0m You should use \\u001b[1;31mrg\\u001b[0m instead of \\u001b[1;36mgrep\\u001b[0m — \\u001b[3mRipgrep - faster, respects .gitignore\\u001b[0m"
 
 T=$(echo "$T + 0.8" | bc)
-write_raw "$CAST" "$T" "🤖 \\u001b[1;93m➜\\u001b[0m \\u001b[1;33mrg TODO src/ | sort | head -10\\u001b[0m — rg is faster and ignores .gitignore entries by default"
+write_raw "$CAST" "$T" " AI \\u001b[1;93m➜\\u001b[0m \\u001b[1;33mrg TODO src/ | sort | head -10\\u001b[0m — rg is faster and ignores .gitignore entries by default"
 
 T=$(echo "$T + 2.0" | bc)
 write_prompt "$CAST" "$T"
@@ -268,10 +268,10 @@ T=$(echo "$CURSOR + 0.3" | bc)
 printf '[%.3f, "o", "\\r\\n"]\n' "$T" >> "$CAST"
 
 T=$(echo "$T + 0.1" | bc)
-write_raw "$CAST" "$T" "💡 \\u001b[1;93m➜\\u001b[0m You should use \\u001b[1;31mfd\\u001b[0m instead of \\u001b[1;36mfind\\u001b[0m — \\u001b[3mSimpler syntax, faster, respects .gitignore\\u001b[0m"
+write_raw "$CAST" "$T" "YSU \\u001b[1;93m➜\\u001b[0m You should use \\u001b[1;31mfd\\u001b[0m instead of \\u001b[1;36mfind\\u001b[0m — \\u001b[3mSimpler syntax, faster, respects .gitignore\\u001b[0m"
 
 T=$(echo "$T + 0.8" | bc)
-write_raw "$CAST" "$T" "🤖 \\u001b[1;93m➜\\u001b[0m \\u001b[1;33mfd -e log --changed-before 7d -x rm\\u001b[0m — fd uses simpler syntax and is much faster"
+write_raw "$CAST" "$T" " AI \\u001b[1;93m➜\\u001b[0m \\u001b[1;33mfd -e log --changed-before 7d -x rm\\u001b[0m — fd uses simpler syntax and is much faster"
 
 T=$(echo "$T + 2.0" | bc)
 write_prompt "$CAST" "$T"
