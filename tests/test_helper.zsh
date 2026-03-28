@@ -30,6 +30,7 @@ _ysu_reset() {
   YSU_LLM_API_URL="http://localhost:11434/v1/chat/completions"
   YSU_LLM_API_KEY=""
   YSU_LLM_MODEL="test-model"
+  _YSU_LLM_RESOLVED_MODEL=""
   YSU_LLM_CACHE_DIR="/tmp/ysu-test-cache-$$"
   _YSU_LLM_PENDING_CMD=""
   _YSU_LLM_ASYNC_FILE=""

@@ -117,7 +117,7 @@ strip_ansi() {
   [[ "$clean" == *"Enabled:"*"enabled"* ]]
 }
 
-@test "ysu status shows model name" {
+@test "ysu status shows specific model name" {
   run_zsh '
     YSU_LLM_MODEL="my-model"
     _ysu_status
@@ -125,6 +125,28 @@ strip_ansi() {
   [ "$status" -eq 0 ]
   clean=$(strip_ansi "$output")
   [[ "$clean" == *"Model:"*"my-model"* ]]
+}
+
+@test "ysu status shows auto with resolved model" {
+  run_zsh '
+    YSU_LLM_MODEL="auto"
+    _YSU_LLM_RESOLVED_MODEL="llama3.1:8b"
+    _ysu_status
+  '
+  [ "$status" -eq 0 ]
+  clean=$(strip_ansi "$output")
+  [[ "$clean" == *"Model:"*"auto (llama3.1:8b)"* ]]
+}
+
+@test "ysu status shows auto unresolved when no model resolved" {
+  run_zsh '
+    YSU_LLM_MODEL="auto"
+    _YSU_LLM_RESOLVED_MODEL=""
+    _ysu_status
+  '
+  [ "$status" -eq 0 ]
+  clean=$(strip_ansi "$output")
+  [[ "$clean" == *"Model:"*"auto (unresolved)"* ]]
 }
 
 @test "ysu status shows API key masked" {

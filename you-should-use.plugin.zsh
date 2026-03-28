@@ -33,12 +33,14 @@ local _ysu_config="${XDG_CONFIG_HOME:-$HOME/.config}/ysu/config.zsh"
 # LLM settings (OpenAI-compatible API — works with Ollama, OpenAI, etc.)
 : ${YSU_LLM_API_URL:="http://localhost:11434/v1/chat/completions"}
 : ${YSU_LLM_API_KEY:=""}
-: ${YSU_LLM_MODEL:="qwen2.5-coder:7b"}
+: ${YSU_LLM_MODEL:="auto"}
 : ${YSU_LLM_CACHE_DIR:="$HOME/.cache/ysu"}
 
 # ============================================================================
 # Ollama auto-detection (runs once at plugin load, not every command)
 # ============================================================================
+
+typeset -g _YSU_LLM_RESOLVED_MODEL=""
 
 if [[ -z "$_YSU_OLLAMA_CHECKED" ]]; then
   typeset -g _YSU_OLLAMA_CHECKED=1
@@ -51,15 +53,62 @@ if [[ -z "$_YSU_OLLAMA_CHECKED" ]]; then
     fi
     if [[ "$_ysu_user_set_llm" == "false" ]]; then
       # Probe Ollama at default port (quick timeout)
-      if curl -s --max-time 1 "http://localhost:11434/api/tags" >/dev/null 2>&1; then
-        # Ollama is running — check if default model is available
-        local _ysu_ollama_tags
-        _ysu_ollama_tags=$(curl -s --max-time 2 "http://localhost:11434/api/tags" 2>/dev/null)
-        if echo "$_ysu_ollama_tags" | grep -q "\"${YSU_LLM_MODEL}\"" 2>/dev/null; then
-          YSU_LLM_ENABLED=true
+      local _ysu_ollama_tags
+      _ysu_ollama_tags=$(curl -s --max-time 2 "http://localhost:11434/api/tags" 2>/dev/null)
+      if [[ -n "$_ysu_ollama_tags" ]]; then
+        if [[ "$YSU_LLM_MODEL" == "auto" ]]; then
+          # Auto mode: pick the first available model
+          local _ysu_first_model=""
+          if command -v jq &>/dev/null; then
+            _ysu_first_model=$(echo "$_ysu_ollama_tags" | jq -r '.models[0].name // empty' 2>/dev/null)
+          elif command -v python3 &>/dev/null; then
+            _ysu_first_model=$(python3 -c "
+import sys, json
+try:
+    r = json.loads(sys.stdin.read())
+    m = r.get('models', [])
+    if m: print(m[0]['name'])
+except: pass
+" <<< "$_ysu_ollama_tags" 2>/dev/null)
+          fi
+          if [[ -n "$_ysu_first_model" ]]; then
+            _YSU_LLM_RESOLVED_MODEL="$_ysu_first_model"
+            YSU_LLM_ENABLED=true
+          fi
+        else
+          # Specific model: check if it's available
+          if echo "$_ysu_ollama_tags" | grep -q "\"${YSU_LLM_MODEL}\"" 2>/dev/null; then
+            _YSU_LLM_RESOLVED_MODEL="$YSU_LLM_MODEL"
+            YSU_LLM_ENABLED=true
+          fi
         fi
       fi
     fi
+  fi
+fi
+
+# Resolve model for non-auto-detect cases (user enabled LLM manually)
+if [[ "$YSU_LLM_ENABLED" == "true" && -z "$_YSU_LLM_RESOLVED_MODEL" ]]; then
+  if [[ "$YSU_LLM_MODEL" == "auto" ]]; then
+    # Try to resolve from Ollama
+    local _ysu_tags
+    _ysu_tags=$(curl -s --max-time 2 "http://localhost:11434/api/tags" 2>/dev/null)
+    if [[ -n "$_ysu_tags" ]]; then
+      if command -v jq &>/dev/null; then
+        _YSU_LLM_RESOLVED_MODEL=$(echo "$_ysu_tags" | jq -r '.models[0].name // empty' 2>/dev/null)
+      elif command -v python3 &>/dev/null; then
+        _YSU_LLM_RESOLVED_MODEL=$(python3 -c "
+import sys, json
+try:
+    r = json.loads(sys.stdin.read())
+    m = r.get('models', [])
+    if m: print(m[0]['name'])
+except: pass
+" <<< "$_ysu_tags" 2>/dev/null)
+      fi
+    fi
+  else
+    _YSU_LLM_RESOLVED_MODEL="$YSU_LLM_MODEL"
   fi
 fi
 
@@ -407,6 +456,14 @@ _ysu_llm_should_trigger() {
   return 1
 }
 
+_ysu_get_effective_model() {
+  if [[ "$YSU_LLM_MODEL" == "auto" && -n "$_YSU_LLM_RESOLVED_MODEL" ]]; then
+    echo "$_YSU_LLM_RESOLVED_MODEL"
+  elif [[ "$YSU_LLM_MODEL" != "auto" ]]; then
+    echo "$YSU_LLM_MODEL"
+  fi
+}
+
 _ysu_llm_query_async() {
   local cmd="$1"
 
@@ -419,10 +476,14 @@ _ysu_llm_query_async() {
   local tmp_file
   tmp_file=$(mktemp "${YSU_LLM_CACHE_DIR}/.pending.XXXXXX")
 
+  local effective_model
+  effective_model=$(_ysu_get_effective_model)
+  [[ -z "$effective_model" ]] && return
+
   local escaped_cmd
   escaped_cmd=$(_ysu_json_escape "$cmd")
   local system_prompt="You are a shell expert. Given a shell command, suggest a better alternative or optimization in one brief sentence. If there is no improvement, reply with exactly: none"
-  local payload="{\"model\":\"${YSU_LLM_MODEL}\",\"messages\":[{\"role\":\"system\",\"content\":\"${system_prompt}\"},{\"role\":\"user\",\"content\":\"${escaped_cmd}\"}],\"max_tokens\":100,\"temperature\":0.3}"
+  local payload="{\"model\":\"${effective_model}\",\"messages\":[{\"role\":\"system\",\"content\":\"${system_prompt}\"},{\"role\":\"user\",\"content\":\"${escaped_cmd}\"}],\"max_tokens\":100,\"temperature\":0.3}"
 
   _YSU_LLM_ASYNC_FILE="$tmp_file"
   _YSU_LLM_ASYNC_CMD="$cmd"
@@ -689,7 +750,15 @@ _ysu_status() {
   fi
   echo -e "  Enabled:            ${llm_status}"
   echo -e "  API URL:            ${YSU_LLM_API_URL}"
-  echo -e "  Model:              ${YSU_LLM_MODEL}"
+  if [[ "$YSU_LLM_MODEL" == "auto" ]]; then
+    if [[ -n "$_YSU_LLM_RESOLVED_MODEL" ]]; then
+      echo -e "  Model:              auto (${_YSU_LLM_RESOLVED_MODEL})"
+    else
+      echo -e "  Model:              auto (unresolved)"
+    fi
+  else
+    echo -e "  Model:              ${YSU_LLM_MODEL}"
+  fi
   if [[ -n "$YSU_LLM_API_KEY" ]]; then
     echo -e "  API Key:            ••••${YSU_LLM_API_KEY: -4}"
   else
