@@ -907,12 +907,14 @@ ysu() {
       esac
       ;;
     status) _ysu_status ;;
+    doctor) _ysu_doctor ;;
     *)
       echo "Usage: ysu <command>"
       echo "Commands:"
       echo "  config    Configure you-should-use interactively"
       echo "  cache     Manage LLM suggestion cache"
       echo "  status    Show current configuration and statistics"
+      echo "  doctor    Run diagnostics and check for issues"
       ;;
   esac
 }
@@ -1008,6 +1010,182 @@ _ysu_status() {
     echo -e "  ${check} ${cfg_file}"
   else
     echo -e "  (using defaults — run \e[1;33mysu config\e[0m to customize)"
+  fi
+  echo ""
+}
+
+_ysu_doctor() {
+  local green='\e[32m' red='\e[31m' yellow='\e[1;33m' bold='\e[1m' reset='\e[0m'
+  local check="${green}✓${reset}" cross="${red}✗${reset}" warn="${yellow}!${reset}"
+  local issues=0
+
+  echo ""
+  echo -e "${bold}🩺 you-should-use doctor${reset}"
+  echo "─────────────────────────"
+
+  # 1. Shell compatibility
+  echo -e "${bold}Shell:${reset}"
+  echo -e "  ${check} Bash ${BASH_VERSION}"
+  local major="${BASH_VERSINFO[0]}"
+  if (( major >= 3 )); then
+    echo -e "  ${check} Bash version >= 3.2 (required)"
+  else
+    echo -e "  ${cross} Bash version < 3.2 — plugin may not work"
+    ((issues++))
+  fi
+
+  # 2. Plugin load
+  echo ""
+  echo -e "${bold}Plugin:${reset}"
+  if [[ "$_YSU_LOADED" == "1" ]]; then
+    echo -e "  ${check} Plugin loaded"
+  else
+    echo -e "  ${cross} Plugin not loaded"
+    ((issues++))
+  fi
+
+  # Check DEBUG trap
+  local current_trap
+  current_trap=$(trap -p DEBUG 2>/dev/null)
+  if [[ "$current_trap" == *"_ysu_preexec"* ]]; then
+    echo -e "  ${check} DEBUG trap registered"
+  else
+    echo -e "  ${cross} DEBUG trap NOT registered — alias reminders won't work"
+    ((issues++))
+  fi
+
+  # Check PROMPT_COMMAND
+  if [[ "$PROMPT_COMMAND" == *"_ysu_precmd"* ]]; then
+    echo -e "  ${check} PROMPT_COMMAND registered"
+  else
+    echo -e "  ${cross} PROMPT_COMMAND NOT registered — LLM results won't display"
+    ((issues++))
+  fi
+
+  # Plugin load time
+  local t0 t1 ms
+  t0=$(date +%s%N 2>/dev/null || echo 0)
+  bash -c "source '${BASH_SOURCE[0]:-}'" 2>/dev/null
+  t1=$(date +%s%N 2>/dev/null || echo 0)
+  if [[ "$t0" != "0" && "$t1" != "0" ]]; then
+    ms=$(( (t1 - t0) / 1000000 ))
+    echo -e "  Plugin load time:   ${ms}ms"
+    if (( ms > 500 )); then
+      echo -e "  ${warn} Load time > 500ms — consider disabling Ollama auto-detect if slow"
+      ((issues++))
+    fi
+  fi
+
+  # 3. Config conflicts
+  echo ""
+  echo -e "${bold}Config:${reset}"
+  local cfg_file="${XDG_CONFIG_HOME:-$HOME/.config}/ysu/config.bash"
+  if [[ -f "$cfg_file" ]]; then
+    echo -e "  ${check} Config file: ${cfg_file}"
+    if grep -q 'YSU_PROBABILITY=0' "$cfg_file" 2>/dev/null; then
+      echo -e "  ${warn} YSU_PROBABILITY=0 — tips will never show"
+      ((issues++))
+    fi
+    if grep -q 'YSU_REMINDER_ENABLED=false' "$cfg_file" 2>/dev/null && \
+       grep -q 'YSU_SUGGEST_ENABLED=false' "$cfg_file" 2>/dev/null && \
+       grep -q 'YSU_LLM_ENABLED=false' "$cfg_file" 2>/dev/null; then
+      echo -e "  ${warn} All features disabled — plugin is doing nothing"
+      ((issues++))
+    fi
+  else
+    echo -e "  ${check} No config file (using defaults)"
+  fi
+  if (( YSU_PROBABILITY < 1 || YSU_PROBABILITY > 100 )); then
+    echo -e "  ${cross} YSU_PROBABILITY=${YSU_PROBABILITY} — must be 1-100"
+    ((issues++))
+  fi
+
+  # 4. Package manager
+  echo ""
+  echo -e "${bold}Package Manager:${reset}"
+  if [[ "$_YSU_PKG_MANAGER" != "unknown" ]]; then
+    echo -e "  ${check} Detected: ${_YSU_PKG_MANAGER}"
+  else
+    echo -e "  ${warn} No package manager detected — install hints will be empty"
+    ((issues++))
+  fi
+
+  # 5. LLM connection
+  echo ""
+  echo -e "${bold}LLM:${reset}"
+  if [[ "$YSU_LLM_ENABLED" == "true" ]]; then
+    echo -e "  ${check} LLM enabled"
+
+    if [[ "$YSU_LLM_API_URL" == *"localhost:11434"* || "$YSU_LLM_API_URL" == *"127.0.0.1:11434"* ]]; then
+      local ollama_resp
+      ollama_resp=$(curl -s --max-time 3 "http://localhost:11434/api/tags" 2>/dev/null)
+      if [[ -n "$ollama_resp" ]]; then
+        echo -e "  ${check} Ollama reachable"
+        local model
+        model=$(_ysu_get_effective_model)
+        if [[ -n "$model" ]]; then
+          echo -e "  ${check} Model: ${model}"
+        else
+          echo -e "  ${cross} No model resolved — run 'ollama pull qwen2.5-coder:7b'"
+          ((issues++))
+        fi
+      else
+        echo -e "  ${cross} Ollama not reachable at localhost:11434"
+        ((issues++))
+      fi
+    else
+      local api_resp
+      api_resp=$(curl -s --max-time 5 -o /dev/null -w "%{http_code}" \
+        -H "Authorization: Bearer ${YSU_LLM_API_KEY}" \
+        "${YSU_LLM_API_URL}" 2>/dev/null)
+      if [[ "$api_resp" =~ ^[23] ]]; then
+        echo -e "  ${check} API reachable (HTTP ${api_resp})"
+      else
+        echo -e "  ${cross} API not reachable: ${YSU_LLM_API_URL} (HTTP ${api_resp})"
+        ((issues++))
+      fi
+    fi
+
+    if [[ -d "$YSU_LLM_CACHE_DIR" && -w "$YSU_LLM_CACHE_DIR" ]]; then
+      echo -e "  ${check} Cache dir writable: ${YSU_LLM_CACHE_DIR}"
+    else
+      echo -e "  ${cross} Cache dir not writable: ${YSU_LLM_CACHE_DIR}"
+      ((issues++))
+    fi
+  else
+    echo -e "  LLM disabled (not tested)"
+  fi
+
+  # 6. Dependencies
+  echo ""
+  echo -e "${bold}Dependencies:${reset}"
+  local dep
+  for dep in curl jq; do
+    if command -v "$dep" &>/dev/null; then
+      echo -e "  ${check} ${dep}"
+    else
+      if [[ "$dep" == "jq" ]]; then
+        echo -e "  ${warn} ${dep} (optional — used for Ollama model detection)"
+      else
+        echo -e "  ${cross} ${dep} (required for LLM)"
+        ((issues++))
+      fi
+    fi
+  done
+  # md5/md5sum
+  if command -v md5sum &>/dev/null || command -v md5 &>/dev/null; then
+    echo -e "  ${check} md5/md5sum"
+  else
+    echo -e "  ${warn} md5/md5sum (needed for LLM cache)"
+    ((issues++))
+  fi
+
+  # Summary
+  echo ""
+  if (( issues == 0 )); then
+    echo -e "${green}${bold}No issues found!${reset}"
+  else
+    echo -e "${yellow}${bold}${issues} issue(s) found${reset}"
   fi
   echo ""
 }

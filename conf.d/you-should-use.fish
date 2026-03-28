@@ -925,12 +925,15 @@ function ysu
             end
         case status
             _ysu_status
+        case doctor
+            _ysu_doctor
         case '*'
             echo "Usage: ysu <command>"
             echo "Commands:"
             echo "  config    Configure you-should-use interactively"
             echo "  cache     Manage LLM suggestion cache"
             echo "  status    Show current configuration and statistics"
+            echo "  doctor    Run diagnostics and check for issues"
     end
 end
 
@@ -1037,6 +1040,149 @@ function _ysu_status
         echo -e "  $check $cfg_file"
     else
         echo -e "  (using defaults — run \e[1;33mysu config\e[0m to customize)"
+    end
+    echo ""
+end
+
+function _ysu_doctor
+    set -l green '\e[32m'
+    set -l red '\e[31m'
+    set -l yellow '\e[1;33m'
+    set -l bold '\e[1m'
+    set -l reset '\e[0m'
+    set -l check $green'✓'$reset
+    set -l cross $red'✗'$reset
+    set -l warn $yellow'!'$reset
+    set -l issues 0
+
+    echo ""
+    echo -e $bold'🩺 you-should-use doctor'$reset
+    echo "─────────────────────────"
+
+    # 1. Shell compatibility
+    echo -e $bold'Shell:'$reset
+    echo -e "  $check Fish $FISH_VERSION"
+    set -l major (string split '.' -- $FISH_VERSION)[1]
+    if test "$major" -ge 3
+        echo -e "  $check Fish version >= 3.0 (required)"
+    else
+        echo -e "  $cross Fish version < 3.0 — some features may not work"
+        set issues (math $issues + 1)
+    end
+
+    # 2. Plugin load
+    echo ""
+    echo -e $bold'Plugin:'$reset
+    if functions -q _ysu_on_preexec
+        echo -e "  $check preexec handler defined"
+    else
+        echo -e "  $cross preexec handler NOT defined — alias reminders won't work"
+        set issues (math $issues + 1)
+    end
+
+    # Plugin load time
+    set -l t0 (date +%s%N 2>/dev/null; or gdate +%s%N 2>/dev/null; or echo 0)
+    fish -c "source (status filename)" 2>/dev/null
+    set -l t1 (date +%s%N 2>/dev/null; or gdate +%s%N 2>/dev/null; or echo 0)
+    if test "$t0" != 0 -a "$t1" != 0
+        set -l ms (math "($t1 - $t0) / 1000000")
+        echo -e "  Plugin load time:   "$ms"ms"
+        if test "$ms" -gt 500
+            echo -e "  $warn Load time > 500ms — consider disabling Ollama auto-detect if slow"
+            set issues (math $issues + 1)
+        end
+    end
+
+    # 3. Config conflicts
+    echo ""
+    echo -e $bold'Config:'$reset
+    set -l cfg_file (set -q XDG_CONFIG_HOME; and echo "$XDG_CONFIG_HOME"; or echo "$HOME/.config")"/ysu/config.fish"
+    if test -f "$cfg_file"
+        echo -e "  $check Config file: $cfg_file"
+        if grep -q 'YSU_PROBABILITY 0' "$cfg_file" 2>/dev/null
+            echo -e "  $warn YSU_PROBABILITY=0 — tips will never show"
+            set issues (math $issues + 1)
+        end
+    else
+        echo -e "  $check No config file (using defaults)"
+    end
+    if test "$YSU_PROBABILITY" -lt 1 -o "$YSU_PROBABILITY" -gt 100 2>/dev/null
+        echo -e "  $cross YSU_PROBABILITY=$YSU_PROBABILITY — must be 1-100"
+        set issues (math $issues + 1)
+    end
+
+    # 4. Package manager
+    echo ""
+    echo -e $bold'Package Manager:'$reset
+    if test "$_YSU_PKG_MANAGER" != unknown
+        echo -e "  $check Detected: $_YSU_PKG_MANAGER"
+    else
+        echo -e "  $warn No package manager detected — install hints will be empty"
+        set issues (math $issues + 1)
+    end
+
+    # 5. LLM connection
+    echo ""
+    echo -e $bold'LLM:'$reset
+    if test "$YSU_LLM_ENABLED" = true
+        echo -e "  $check LLM enabled"
+        if string match -q '*localhost:11434*' -- "$YSU_LLM_API_URL"; or string match -q '*127.0.0.1:11434*' -- "$YSU_LLM_API_URL"
+            set -l ollama_resp (curl -s --max-time 3 "http://localhost:11434/api/tags" 2>/dev/null)
+            if test -n "$ollama_resp"
+                echo -e "  $check Ollama reachable"
+                set -l model (_ysu_get_effective_model)
+                if test -n "$model"
+                    echo -e "  $check Model: $model"
+                else
+                    echo -e "  $cross No model resolved — run 'ollama pull qwen2.5-coder:7b'"
+                    set issues (math $issues + 1)
+                end
+            else
+                echo -e "  $cross Ollama not reachable at localhost:11434"
+                set issues (math $issues + 1)
+            end
+        else
+            set -l api_resp (curl -s --max-time 5 -o /dev/null -w "%{http_code}" \
+                -H "Authorization: Bearer $YSU_LLM_API_KEY" \
+                "$YSU_LLM_API_URL" 2>/dev/null)
+            if string match -qr '^[23]' -- "$api_resp"
+                echo -e "  $check API reachable (HTTP $api_resp)"
+            else
+                echo -e "  $cross API not reachable: $YSU_LLM_API_URL (HTTP $api_resp)"
+                set issues (math $issues + 1)
+            end
+        end
+        if test -d "$YSU_LLM_CACHE_DIR" -a -w "$YSU_LLM_CACHE_DIR"
+            echo -e "  $check Cache dir writable: $YSU_LLM_CACHE_DIR"
+        else
+            echo -e "  $cross Cache dir not writable: $YSU_LLM_CACHE_DIR"
+            set issues (math $issues + 1)
+        end
+    else
+        echo -e "  LLM disabled (not tested)"
+    end
+
+    # 6. Dependencies
+    echo ""
+    echo -e $bold'Dependencies:'$reset
+    if command -q curl
+        echo -e "  $check curl"
+    else
+        echo -e "  $cross curl (required for LLM)"
+        set issues (math $issues + 1)
+    end
+    if command -q jq
+        echo -e "  $check jq"
+    else
+        echo -e "  $warn jq (optional — used for Ollama model detection)"
+    end
+
+    # Summary
+    echo ""
+    if test "$issues" -eq 0
+        echo -e $green$bold'No issues found!'$reset
+    else
+        echo -e $yellow$bold$issues' issue(s) found'$reset
     end
     echo ""
 end

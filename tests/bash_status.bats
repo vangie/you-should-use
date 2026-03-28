@@ -79,6 +79,44 @@ run_bash() {
   [[ "$output" == "bat" ]]
 }
 
+@test "bash: ysu doctor shows header" {
+  run_bash '_ysu_doctor'
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"you-should-use doctor"* ]]
+}
+
+@test "bash: ysu doctor shows shell info" {
+  run_bash '_ysu_doctor'
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Shell:"* ]]
+  [[ "$output" == *"Bash"* ]]
+}
+
+@test "bash: ysu doctor shows package manager" {
+  run_bash '_ysu_doctor'
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Package Manager:"* ]]
+}
+
+@test "bash: ysu doctor shows LLM section" {
+  run_bash '_ysu_doctor'
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"LLM:"* ]]
+}
+
+@test "bash: ysu doctor shows dependencies" {
+  run_bash '_ysu_doctor'
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Dependencies:"* ]]
+  [[ "$output" == *"curl"* ]]
+}
+
+@test "bash: ysu help lists doctor" {
+  run_bash 'ysu help'
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"doctor"* ]]
+}
+
 @test "bash: ysu status shows multi-command info when mode is both" {
   run_bash '
     YSU_LLM_MODE="both"

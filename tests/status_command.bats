@@ -52,6 +52,48 @@ strip_ansi() {
   [[ "$output" == "ripgrep" ]]
 }
 
+@test "ysu doctor shows header" {
+  run_zsh '_ysu_doctor'
+  [ "$status" -eq 0 ]
+  clean=$(strip_ansi "$output")
+  [[ "$clean" == *"you-should-use doctor"* ]]
+}
+
+@test "ysu doctor shows shell info" {
+  run_zsh '_ysu_doctor'
+  [ "$status" -eq 0 ]
+  clean=$(strip_ansi "$output")
+  [[ "$clean" == *"Shell:"* ]]
+  [[ "$clean" == *"Zsh"* ]]
+}
+
+@test "ysu doctor shows package manager section" {
+  run_zsh '_ysu_doctor'
+  [ "$status" -eq 0 ]
+  clean=$(strip_ansi "$output")
+  [[ "$clean" == *"Package Manager:"* ]]
+}
+
+@test "ysu doctor shows LLM section" {
+  run_zsh '_ysu_doctor'
+  [ "$status" -eq 0 ]
+  clean=$(strip_ansi "$output")
+  [[ "$clean" == *"LLM:"* ]]
+}
+
+@test "ysu doctor shows dependencies" {
+  run_zsh '_ysu_doctor'
+  [ "$status" -eq 0 ]
+  clean=$(strip_ansi "$output")
+  [[ "$clean" == *"Dependencies:"* ]]
+}
+
+@test "ysu help lists doctor" {
+  run_zsh 'ysu help'
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"doctor"* ]]
+}
+
 @test "ysu status shows LLM Settings section" {
   run_zsh '_ysu_status'
   [ "$status" -eq 0 ]
