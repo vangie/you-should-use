@@ -14,25 +14,25 @@ A shell plugin that helps you work smarter by:
 
 Forgot you had an alias? The plugin gently reminds you.
 
-<img src="demos/alias-reminders.gif" alt="Alias reminders demo" width="600">
+[![asciicast](https://asciinema.org/a/876668.svg)](https://asciinema.org/a/876668)
 
 ### Modern Tool Suggestions
 
 Still using `cat`, `find`, or `ls`? Get suggestions for modern alternatives.
 
-<img src="demos/modern-suggestions.gif" alt="Modern tool suggestions demo" width="600">
+[![asciicast](https://asciinema.org/a/876669.svg)](https://asciinema.org/a/876669)
 
 ### AI-Powered Suggestions
 
 With Ollama running locally, get intelligent command rewrites.
 
-<img src="demos/llm-suggestions.gif" alt="LLM suggestions demo" width="600">
+[![asciicast](https://asciinema.org/a/876671.svg)](https://asciinema.org/a/876671)
 
 ### Status Dashboard
 
 See your full configuration at a glance with `ysu status`.
 
-<img src="demos/ysu-status.gif" alt="ysu status dashboard demo" width="600">
+[![asciicast](https://asciinema.org/a/876670.svg)](https://asciinema.org/a/876670)
 
 ## Installation
 
