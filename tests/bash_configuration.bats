@@ -56,13 +56,13 @@ run_bash() {
 @test "bash: modern commands mapping has correct count" {
   run_bash 'echo "${#YSU_MODERN_KEYS[@]}"'
   [ "$status" -eq 0 ]
-  [[ "$output" == "23" ]]
+  [[ "$output" == "24" ]]
 }
 
 @test "bash: install commands mapping has correct count" {
   run_bash 'echo "${#YSU_INSTALL_KEYS[@]}"'
   [ "$status" -eq 0 ]
-  [[ "$output" == "31" ]]
+  [[ "$output" == "32" ]]
 }
 
 @test "bash: should_show respects probability" {

@@ -126,7 +126,7 @@ fi
 
 if [[ -z "${YSU_MODERN_KEYS+x}" ]]; then
   YSU_MODERN_KEYS=(
-    cat ls find grep du top ps diff sed curl ping dig man cd df xxd make wget time history cloc tree traceroute
+    cat ls find grep du top ps diff sed curl ping dig man cd df xxd make wget time history cloc tree traceroute tmux
   )
   YSU_MODERN_VALS=(
     "bat:Syntax highlighting, line numbers, git integration|glow:Terminal Markdown renderer"
@@ -152,13 +152,14 @@ if [[ -z "${YSU_MODERN_KEYS+x}" ]]; then
     "tokei:Fast code line counter with language breakdown"
     "broot:Interactive directory tree with fuzzy search"
     "mtr:Combined traceroute and ping with live display"
+    "zellij:Modern terminal multiplexer with intuitive UI"
   )
 fi
 
 # Install command hints (parallel arrays)
 if [[ -z "${YSU_INSTALL_KEYS+x}" ]]; then
   YSU_INSTALL_KEYS=(
-    bat eza lsd fd rg ag dust ncdu btop htop procs delta colordiff sd httpie curlie gping dog tldr zoxide duf hexyl just xh hyperfine mcfly atuin glow tokei broot mtr
+    bat eza lsd fd rg ag dust ncdu btop htop procs delta colordiff sd httpie curlie gping dog tldr zoxide duf hexyl just xh hyperfine mcfly atuin glow tokei broot mtr zellij
   )
   YSU_INSTALL_VALS=(
     "brew install bat"
@@ -192,6 +193,7 @@ if [[ -z "${YSU_INSTALL_KEYS+x}" ]]; then
     "brew install tokei"
     "brew install broot"
     "brew install mtr"
+    "brew install zellij"
   )
 fi
 
