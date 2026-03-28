@@ -635,13 +635,101 @@ ysu() {
         *) echo "Usage: ysu cache [clear|size]" ;;
       esac
       ;;
+    status) _ysu_status ;;
     *)
       echo "Usage: ysu <command>"
       echo "Commands:"
       echo "  config    Configure you-should-use interactively"
       echo "  cache     Manage LLM suggestion cache"
+      echo "  status    Show current configuration and statistics"
       ;;
   esac
+}
+
+_ysu_status() {
+  local green='\e[32m' red='\e[31m' yellow='\e[1;33m' cyan='\e[1;36m' bold='\e[1m' reset='\e[0m'
+  local check="${green}✓${reset}" cross="${red}✗${reset}"
+
+  echo ""
+  echo -e "${bold}📊 you-should-use status${reset}"
+  echo "─────────────────────────"
+
+  # Core Settings
+  echo -e "${bold}Core Settings:${reset}"
+  echo -e "  Alias Reminders:    $([[ "$YSU_REMINDER_ENABLED" == "true" ]] && echo "${check} enabled" || echo "${cross} disabled")"
+  echo -e "  Modern Suggestions: $([[ "$YSU_SUGGEST_ENABLED" == "true" ]] && echo "${check} enabled" || echo "${cross} disabled")"
+  echo -e "  Prefix:             \"${YSU_PREFIX}\""
+  echo -e "  Probability:        ${YSU_PROBABILITY}%"
+  echo -e "  Cooldown:           ${YSU_COOLDOWN}s"
+  if [[ -n "$YSU_IGNORE_ALIASES" ]]; then
+    echo -e "  Ignored Aliases:    ${YSU_IGNORE_ALIASES}"
+  fi
+  if [[ -n "$YSU_IGNORE_COMMANDS" ]]; then
+    echo -e "  Ignored Commands:   ${YSU_IGNORE_COMMANDS}"
+  fi
+
+  # LLM Settings
+  echo ""
+  echo -e "${bold}LLM Settings:${reset}"
+  local llm_status
+  if [[ "$YSU_LLM_ENABLED" == "true" ]]; then
+    llm_status="${check} enabled"
+    # Check if it was auto-detected via Ollama
+    if [[ -n "$_YSU_OLLAMA_CHECKED" ]]; then
+      # If config file doesn't explicitly set it, it was auto-detected
+      local _ysu_cfg="${XDG_CONFIG_HOME:-$HOME/.config}/ysu/config.zsh"
+      if [[ -f "$_ysu_cfg" ]] && grep -q 'YSU_LLM_ENABLED' "$_ysu_cfg" 2>/dev/null; then
+        llm_status="${llm_status} (user configured)"
+      else
+        llm_status="${llm_status} (auto-detected Ollama)"
+      fi
+    fi
+  else
+    llm_status="${cross} disabled"
+  fi
+  echo -e "  Enabled:            ${llm_status}"
+  echo -e "  API URL:            ${YSU_LLM_API_URL}"
+  echo -e "  Model:              ${YSU_LLM_MODEL}"
+  if [[ -n "$YSU_LLM_API_KEY" ]]; then
+    echo -e "  API Key:            ••••${YSU_LLM_API_KEY: -4}"
+  else
+    echo -e "  API Key:            (not set)"
+  fi
+
+  # Cache stats
+  local cache_count=0
+  if [[ -d "$YSU_LLM_CACHE_DIR" ]]; then
+    cache_count=$(find "$YSU_LLM_CACHE_DIR" -maxdepth 1 -type f ! -name '.*' 2>/dev/null | wc -l | tr -d ' ')
+  fi
+  echo -e "  Cache:              ${cache_count} entries"
+
+  # Statistics
+  echo ""
+  echo -e "${bold}Statistics:${reset}"
+
+  # Count aliases
+  local alias_count=${#aliases}
+  echo -e "  Aliases defined:    ${alias_count}"
+
+  # Count modern tool mappings
+  local modern_count=${#YSU_MODERN_COMMANDS}
+  echo -e "  Modern mappings:    ${modern_count}"
+
+  # Promo stats
+  if [[ "$YSU_LLM_ENABLED" == "false" ]]; then
+    echo -e "  Promo shown today:  ${_YSU_PROMO_SHOWN_TODAY}/3"
+  fi
+
+  # Config file
+  echo ""
+  echo -e "${bold}Config File:${reset}"
+  local cfg_file="${XDG_CONFIG_HOME:-$HOME/.config}/ysu/config.zsh"
+  if [[ -f "$cfg_file" ]]; then
+    echo -e "  ${check} ${cfg_file}"
+  else
+    echo -e "  ${cross} (none — using defaults)"
+  fi
+  echo ""
 }
 
 _ysu_config_wizard() {

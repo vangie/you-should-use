@@ -607,12 +607,104 @@ function ysu
                 case '*'
                     echo "Usage: ysu cache [clear|size]"
             end
+        case status
+            _ysu_status
         case '*'
             echo "Usage: ysu <command>"
             echo "Commands:"
             echo "  config    Configure you-should-use interactively"
             echo "  cache     Manage LLM suggestion cache"
+            echo "  status    Show current configuration and statistics"
     end
+end
+
+function _ysu_status
+    set -l green '\e[32m'
+    set -l red '\e[31m'
+    set -l bold '\e[1m'
+    set -l reset '\e[0m'
+    set -l check $green'✓'$reset
+    set -l cross $red'✗'$reset
+
+    echo ""
+    echo -e $bold'📊 you-should-use status'$reset
+    echo "─────────────────────────"
+
+    # Core Settings
+    echo -e $bold'Core Settings:'$reset
+    echo -e "  Alias Reminders:    "(test "$YSU_REMINDER_ENABLED" = true; and echo -e $check' enabled'; or echo -e $cross' disabled')
+    echo -e "  Modern Suggestions: "(test "$YSU_SUGGEST_ENABLED" = true; and echo -e $check' enabled'; or echo -e $cross' disabled')
+    echo -e "  Prefix:             \"$YSU_PREFIX\""
+    echo -e "  Probability:        $YSU_PROBABILITY%"
+    echo -e "  Cooldown:           ${YSU_COOLDOWN}s"
+    if test -n "$YSU_IGNORE_ALIASES"
+        echo -e "  Ignored Aliases:    $YSU_IGNORE_ALIASES"
+    end
+    if test -n "$YSU_IGNORE_COMMANDS"
+        echo -e "  Ignored Commands:   $YSU_IGNORE_COMMANDS"
+    end
+
+    # LLM Settings
+    echo ""
+    echo -e $bold'LLM Settings:'$reset
+    set -l llm_status
+    if test "$YSU_LLM_ENABLED" = true
+        set llm_status $check' enabled'
+        # Check if it was auto-detected via Ollama
+        if set -q _YSU_OLLAMA_CHECKED
+            set -l _ysu_cfg (set -q XDG_CONFIG_HOME; and echo "$XDG_CONFIG_HOME"; or echo "$HOME/.config")"/ysu/config.fish"
+            if test -f "$_ysu_cfg"; and grep -q 'YSU_LLM_ENABLED' "$_ysu_cfg" 2>/dev/null
+                set llm_status $llm_status' (user configured)'
+            else
+                set llm_status $llm_status' (auto-detected Ollama)'
+            end
+        end
+    else
+        set llm_status $cross' disabled'
+    end
+    echo -e "  Enabled:            $llm_status"
+    echo -e "  API URL:            $YSU_LLM_API_URL"
+    echo -e "  Model:              $YSU_LLM_MODEL"
+    if test -n "$YSU_LLM_API_KEY"
+        echo -e "  API Key:            ••••"(string sub -s -4 -- "$YSU_LLM_API_KEY")
+    else
+        echo -e "  API Key:            (not set)"
+    end
+
+    # Cache stats
+    set -l cache_count 0
+    if test -d "$YSU_LLM_CACHE_DIR"
+        set cache_count (find "$YSU_LLM_CACHE_DIR" -maxdepth 1 -type f ! -name '.*' 2>/dev/null | wc -l | string trim)
+    end
+    echo -e "  Cache:              $cache_count entries"
+
+    # Statistics
+    echo ""
+    echo -e $bold'Statistics:'$reset
+
+    # Count abbreviations
+    set -l abbr_count (abbr --list 2>/dev/null | wc -l | string trim)
+    echo -e "  Abbreviations:      $abbr_count defined"
+
+    # Count modern tool mappings
+    set -l modern_count (count $YSU_MODERN_KEYS)
+    echo -e "  Modern mappings:    $modern_count"
+
+    # Promo stats
+    if test "$YSU_LLM_ENABLED" = false
+        echo -e "  Promo shown today:  $_YSU_PROMO_SHOWN_TODAY/3"
+    end
+
+    # Config file
+    echo ""
+    echo -e $bold'Config File:'$reset
+    set -l cfg_file (set -q XDG_CONFIG_HOME; and echo "$XDG_CONFIG_HOME"; or echo "$HOME/.config")"/ysu/config.fish"
+    if test -f "$cfg_file"
+        echo -e "  $check $cfg_file"
+    else
+        echo -e "  $cross (none — using defaults)"
+    end
+    echo ""
 end
 
 function _ysu_config_wizard
