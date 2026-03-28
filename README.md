@@ -4,21 +4,35 @@ A shell plugin that helps you work smarter by:
 
 1. **Alias Reminders** — When you type a full command that has an alias defined, it reminds you to use the alias
 2. **Modern Command Suggestions** — When you use legacy commands (cat, ls, find, grep, etc.), it suggests modern Rust/Go alternatives if they're installed
+3. **AI-Powered Suggestions** — Uses a local LLM (via Ollama) to suggest better ways to write your commands
 
 > Currently supports **Zsh** and **Fish**. Bash support is planned.
 
-## Demo
+## Demos
 
-```
-$ git status
-💡 Use alias gs instead of git status
+### Alias Reminders
 
-$ cat README.md
-💡 Try bat instead of cat — Syntax highlighting, line numbers, git integration
+Forgot you had an alias? The plugin gently reminds you.
 
-$ find . -name "*.js"
-💡 Try fd instead of find — Simpler syntax, faster, respects .gitignore
-```
+<img src="demos/alias-reminders.gif" alt="Alias reminders demo" width="600">
+
+### Modern Tool Suggestions
+
+Still using `cat`, `find`, or `ls`? Get suggestions for modern alternatives.
+
+<img src="demos/modern-suggestions.gif" alt="Modern tool suggestions demo" width="600">
+
+### AI-Powered Suggestions
+
+With Ollama running locally, get intelligent command rewrites.
+
+<img src="demos/llm-suggestions.gif" alt="LLM suggestions demo" width="600">
+
+### Status Dashboard
+
+See your full configuration at a glance with `ysu status`.
+
+<img src="demos/ysu-status.gif" alt="ysu status dashboard demo" width="600">
 
 ## Installation
 
@@ -91,6 +105,7 @@ All configuration is done via environment variables. Set them in your shell conf
 ```bash
 YSU_REMINDER_ENABLED=true    # Enable alias reminders (default: true)
 YSU_SUGGEST_ENABLED=true     # Enable modern tool suggestions (default: true)
+YSU_LLM_ENABLED=true         # Enable AI-powered suggestions (default: false, auto-detected with Ollama)
 ```
 
 ### Display
@@ -135,6 +150,26 @@ YSU_MODERN_COMMANDS=(
 )
 ```
 
+### LLM Settings
+
+Configure the AI-powered suggestion engine. Works with any OpenAI-compatible API (Ollama, OpenAI, etc.).
+
+```bash
+YSU_LLM_API_URL="http://localhost:11434/v1"  # API endpoint (default: Ollama)
+YSU_LLM_MODEL="auto"                          # Model name or "auto" (picks first available)
+YSU_LLM_API_KEY=""                             # API key (not needed for Ollama)
+```
+
+> **Ollama Auto-Detection:** If [Ollama](https://ollama.com) is running locally, the plugin automatically enables LLM suggestions — no configuration needed.
+
+## Commands
+
+```bash
+ysu status    # Show current configuration and statistics
+ysu config    # Interactive configuration wizard
+ysu cache     # Manage LLM suggestion cache (clear, size)
+```
+
 ## Default Modern Command Mappings
 
 | Legacy Command | Modern Alternatives | Description |
@@ -162,13 +197,15 @@ The plugin hooks into the shell's pre-execution mechanism (`preexec` in Zsh, `fi
 
 1. Checks if you typed a command that matches an existing alias expansion (alias reminder)
 2. Checks if the command has a known modern alternative that is installed (tool suggestion)
+3. Sends complex commands to a local LLM for intelligent rewrite suggestions (async, cached)
 
-Both checks respect the probability and cooldown settings to avoid being annoying.
+All checks respect the probability and cooldown settings to avoid being annoying. LLM suggestions run asynchronously and display on the next prompt to avoid slowing down your workflow.
 
 ## Roadmap
 
 - [x] Zsh support
 - [x] Fish support
+- [x] AI-powered suggestions (Ollama / OpenAI)
 - [ ] Bash support
 
 ## License
