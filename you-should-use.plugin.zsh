@@ -45,7 +45,7 @@ typeset -g _YSU_LLM_RESOLVED_MODEL=""
 if [[ -z "$_YSU_OLLAMA_CHECKED" ]]; then
   typeset -g _YSU_OLLAMA_CHECKED=1
   # Only auto-detect if user hasn't explicitly configured LLM
-  if [[ "$YSU_LLM_ENABLED" == "false" && -z "${YSU_LLM_ENABLED+set_by_user}" ]]; then
+  if [[ "$YSU_LLM_ENABLED" == "false" ]]; then
     # Check if the config file explicitly set YSU_LLM_ENABLED
     local _ysu_user_set_llm=false
     if [[ -f "${XDG_CONFIG_HOME:-$HOME/.config}/ysu/config.zsh" ]]; then
