@@ -111,12 +111,22 @@ YSU_LLM_ENABLED=true         # Enable AI-powered suggestions (default: false, au
 ### Display
 
 ```bash
-YSU_COLOR=yellow             # Message color (default: yellow)
-# Options: black, red, green, yellow, blue, magenta, cyan, white
-
 YSU_PREFIX="💡"               # Prefix for all messages
 YSU_REMINDER_PREFIX=""        # Extra prefix for alias reminders
 YSU_SUGGEST_PREFIX=""         # Extra prefix for tool suggestions
+YSU_MESSAGE_FORMAT="{prefix} {arrow} {message}"  # Custom message template
+```
+
+The `YSU_MESSAGE_FORMAT` variable supports three placeholders:
+- `{prefix}` — The combined prefix (YSU_PREFIX + feature-specific prefix)
+- `{arrow}` — The colored arrow separator (➜)
+- `{message}` — The actual suggestion text
+
+Examples:
+```bash
+YSU_MESSAGE_FORMAT="[{prefix}] {message}"      # No arrow
+YSU_MESSAGE_FORMAT="{message}"                   # Message only
+YSU_MESSAGE_FORMAT="{prefix}: {arrow} {message}" # Custom separator
 ```
 
 ### Frequency Control
@@ -133,6 +143,30 @@ YSU_COOLDOWN=30              # Minimum 30 seconds between tips (default: 0)
 ```bash
 YSU_IGNORE_ALIASES="g gc"    # Don't remind about these aliases
 YSU_IGNORE_COMMANDS="cat ls" # Don't suggest alternatives for these
+```
+
+### Install Hints
+
+When a modern tool alternative is not installed, the plugin can show the install command:
+
+```bash
+YSU_INSTALL_HINT=true         # Show install commands (default: true)
+```
+
+Example output:
+```
+💡 ➜ Try bat instead of cat — Syntax highlighting, line numbers (install: brew install bat)
+```
+
+You can customize the install commands mapping:
+
+```bash
+typeset -gA YSU_INSTALL_COMMANDS
+YSU_INSTALL_COMMANDS=(
+  bat    "brew install bat"
+  eza    "cargo install eza"    # Override default
+  myutil "pip install myutil"   # Add custom
+)
 ```
 
 ### Custom Modern Command Mappings
@@ -158,7 +192,22 @@ Configure the AI-powered suggestion engine. Works with any OpenAI-compatible API
 YSU_LLM_API_URL="http://localhost:11434/v1"  # API endpoint (default: Ollama)
 YSU_LLM_MODEL="auto"                          # Model name or "auto" (picks first available)
 YSU_LLM_API_KEY=""                             # API key (not needed for Ollama)
+YSU_LLM_MODE="single"                         # single, multi, or both
+YSU_LLM_WINDOW_SIZE=5                          # Commands for multi-command analysis
 ```
+
+#### Multi-Command Mode
+
+In `multi` or `both` mode, the plugin analyzes your recent command history as a sliding window and suggests workflow optimizations:
+
+```bash
+YSU_LLM_MODE="both"          # Enable both single-command and multi-command analysis
+YSU_LLM_WINDOW_SIZE=5        # Analyze the last 5 commands
+```
+
+- **single** — Analyze each command individually (default)
+- **multi** — Only analyze command sequences (sliding window)
+- **both** — Analyze both individual commands and sequences
 
 > **Ollama Auto-Detection:** If [Ollama](https://ollama.com) is running locally, the plugin automatically enables LLM suggestions — no configuration needed.
 
@@ -206,6 +255,9 @@ All checks respect the probability and cooldown settings to avoid being annoying
 - [x] Zsh support
 - [x] Fish support
 - [x] AI-powered suggestions (Ollama / OpenAI)
+- [x] Install command hints
+- [x] Custom message templates
+- [x] Multi-command workflow analysis
 - [ ] Bash support
 
 ## License

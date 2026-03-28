@@ -27,6 +27,10 @@ set -q YSU_LLM_API_URL; or set -g YSU_LLM_API_URL "http://localhost:11434/v1/cha
 set -q YSU_LLM_API_KEY; or set -g YSU_LLM_API_KEY ""
 set -q YSU_LLM_MODEL; or set -g YSU_LLM_MODEL "auto"
 set -q YSU_LLM_CACHE_DIR; or set -g YSU_LLM_CACHE_DIR "$HOME/.cache/ysu"
+set -q YSU_LLM_MODE; or set -g YSU_LLM_MODE "single"
+set -q YSU_LLM_WINDOW_SIZE; or set -g YSU_LLM_WINDOW_SIZE 5
+set -q YSU_INSTALL_HINT; or set -g YSU_INSTALL_HINT true
+set -q YSU_MESSAGE_FORMAT; or set -g YSU_MESSAGE_FORMAT "{prefix} {arrow} {message}"
 
 # ============================================================================
 # Ollama auto-detection (runs once at plugin load, not every command)
@@ -134,6 +138,40 @@ if not set -q YSU_MODERN_KEYS
         "mcfly:Intelligent shell history search with neural network|atuin:Magical shell history with sync"
 end
 
+# Install command hints (parallel lists: tool name → install command)
+if not set -q YSU_INSTALL_KEYS
+    set -g YSU_INSTALL_KEYS \
+        bat eza lsd fd rg ag dust ncdu btop htop procs delta colordiff sd httpie curlie gping dog tldr zoxide duf hexyl just xh hyperfine mcfly atuin
+    set -g YSU_INSTALL_VALS \
+        "brew install bat" \
+        "brew install eza" \
+        "brew install lsd" \
+        "brew install fd" \
+        "brew install ripgrep" \
+        "brew install the_silver_searcher" \
+        "brew install dust" \
+        "brew install ncdu" \
+        "brew install btop" \
+        "brew install htop" \
+        "brew install procs" \
+        "brew install git-delta" \
+        "brew install colordiff" \
+        "brew install sd" \
+        "brew install httpie" \
+        "brew install curlie" \
+        "brew install gping" \
+        "brew install dog" \
+        "brew install tldr" \
+        "brew install zoxide" \
+        "brew install duf" \
+        "brew install hexyl" \
+        "brew install just" \
+        "brew install xh" \
+        "brew install hyperfine" \
+        "brew install mcfly" \
+        "brew install atuin"
+end
+
 # ============================================================================
 # Internal state
 # ============================================================================
@@ -144,6 +182,9 @@ set -g _YSU_LLM_ASYNC_FILE ""
 set -g _YSU_LLM_ASYNC_CMD ""
 set -g _YSU_PROMO_SHOWN_TODAY 0
 set -g _YSU_PROMO_DATE ""
+set -g _YSU_CMD_HISTORY
+set -g _YSU_MULTI_ASYNC_FILE ""
+set -g _YSU_MULTI_ASYNC_KEY ""
 
 # ============================================================================
 # Helper functions
@@ -154,8 +195,12 @@ function _ysu_print
     if test -n "$argv[1]"
         set prefix "$prefix$argv[1]"
     end
-    set -l msg "$argv[2]"
-    echo -e "$prefix \e[1;93m➜\e[0m $msg\e[0m"
+    set -l arrow "\e[1;93m➜\e[0m"
+    set -l message "$argv[2]\e[0m"
+    set -l result (string replace -a '{prefix}' "$prefix" -- "$YSU_MESSAGE_FORMAT")
+    set result (string replace -a '{arrow}' "$arrow" -- $result)
+    set result (string replace -a '{message}' "$message" -- $result)
+    echo -e $result
 end
 
 function _ysu_should_show
@@ -299,6 +344,9 @@ function _ysu_check_modern
     set -l mapping $YSU_MODERN_VALS[$idx]
 
     # Support multiple alternatives separated by |
+    set -l _first_uninstalled ""
+    set -l _first_uninstalled_desc ""
+    set -l _first_uninstalled_install ""
     for entry in (string split '|' -- $mapping)
         set -l modern_cmd (string split -m1 ':' -- $entry)[1]
         set -l description (string split -m1 ':' -- $entry)[2]
@@ -331,7 +379,24 @@ function _ysu_check_modern
                 "You should use \e[1;31m$modern_cmd\e[0m instead of \e[1;36m$first_word\e[0m — \e[3m$description\e[0m"
             _ysu_record_tip
             return
+        else if test -z "$_first_uninstalled"
+            set _first_uninstalled $modern_cmd
+            set _first_uninstalled_desc $description
+            # Look up install command
+            for ii in (seq (count $YSU_INSTALL_KEYS))
+                if test "$YSU_INSTALL_KEYS[$ii]" = "$modern_cmd"
+                    set _first_uninstalled_install "$YSU_INSTALL_VALS[$ii]"
+                    break
+                end
+            end
         end
+    end
+
+    # No installed alternative found — show install hint for the first one
+    if test "$YSU_INSTALL_HINT" = true; and test -n "$_first_uninstalled"; and test -n "$_first_uninstalled_install"
+        _ysu_print "$YSU_SUGGEST_PREFIX" \
+            "Try \e[1;31m$_first_uninstalled\e[0m instead of \e[1;36m$first_word\e[0m — \e[3m$_first_uninstalled_desc\e[0m (install: \e[1;33m$_first_uninstalled_install\e[0m)"
+        _ysu_record_tip
     end
 end
 
@@ -531,6 +596,120 @@ function _ysu_llm_check_async
 end
 
 # ============================================================================
+# Feature 4b: LLM multi-command analysis (sliding window)
+# ============================================================================
+
+function _ysu_multi_push_cmd
+    set -g -a _YSU_CMD_HISTORY $argv[1]
+    # Trim to window size
+    while test (count $_YSU_CMD_HISTORY) -gt $YSU_LLM_WINDOW_SIZE
+        set -e _YSU_CMD_HISTORY[1]
+    end
+end
+
+function _ysu_multi_should_trigger
+    test (count $_YSU_CMD_HISTORY) -ge 3; or return 1
+    return 0
+end
+
+function _ysu_multi_query_async
+    # Clean up any previous pending request
+    if test -n "$_YSU_MULTI_ASYNC_FILE"
+        rm -f "$_YSU_MULTI_ASYNC_FILE" "$_YSU_MULTI_ASYNC_FILE.done" 2>/dev/null
+    end
+
+    mkdir -p "$YSU_LLM_CACHE_DIR"
+    set -g _YSU_MULTI_ASYNC_FILE (mktemp "$YSU_LLM_CACHE_DIR/.multi.XXXXXX")
+
+    set -l effective_model (_ysu_get_effective_model)
+    test -n "$effective_model"; or return
+
+    # Build the command sequence string
+    set -l cmd_sequence (string join \n -- $_YSU_CMD_HISTORY)
+
+    set -l cache_key (_ysu_llm_cache_key "$cmd_sequence")
+    set -l cache_file "$YSU_LLM_CACHE_DIR/multi_$cache_key"
+    set -g _YSU_MULTI_ASYNC_KEY "$cache_key"
+
+    # Check cache first
+    if test -f "$cache_file"
+        if test -s "$cache_file"
+            set -l cached (cat "$cache_file")
+            test -n "$cached"; and _ysu_print "$YSU_LLM_PREFIX" "$cached"
+        end
+        set -g _YSU_MULTI_ASYNC_FILE ""
+        set -g _YSU_MULTI_ASYNC_KEY ""
+        return
+    end
+
+    set -l escaped_cmds (_ysu_llm_json_escape "$cmd_sequence")
+    set -l system_prompt "You are a shell workflow expert. Given a sequence of recent shell commands, identify if there is a pattern or workflow that could be optimized. Suggest a single improvement (a combined command, a tool, or a better workflow) in one brief sentence. If there is no improvement, reply with exactly: none"
+    set -l payload "{\"model\":\"$effective_model\",\"messages\":[{\"role\":\"system\",\"content\":\"$system_prompt\"},{\"role\":\"user\",\"content\":\"Recent commands:\\n$escaped_cmds\"}],\"max_tokens\":150,\"temperature\":0.3}"
+
+    set -l tmp_file $_YSU_MULTI_ASYNC_FILE
+    set -l api_url $YSU_LLM_API_URL
+    set -l api_key $YSU_LLM_API_KEY
+    set -l cache_dir $YSU_LLM_CACHE_DIR
+
+    fish -c "
+        set -l auth_args
+        test -n '$api_key'; and set auth_args -H 'Authorization: Bearer $api_key'
+
+        set -l response (curl -s --max-time 15 \
+            -H 'Content-Type: application/json' \
+            \$auth_args \
+            -d '$payload' \
+            '$api_url' 2>/dev/null; or true)
+
+        set -l content ''
+        if test -n \"\$response\"
+            if command -q jq
+                set content (echo \$response | jq -r '.choices[0].message.content // empty' 2>/dev/null)
+            else if command -q python3
+                set content (echo \$response | python3 -c \"
+import sys, json
+try:
+    r = json.load(sys.stdin)
+    print(r['choices'][0]['message']['content'])
+except: pass
+\" 2>/dev/null)
+            end
+        end
+
+        set content (string trim -- \$content)
+        if test -n \"\$content\"; and test \"\$content\" != none; and test \"\$content\" != 'none.'
+            echo \$content > '$tmp_file'
+        else
+            echo -n > '$tmp_file'
+        end
+        touch '$tmp_file.done'
+    " &
+    disown 2>/dev/null
+end
+
+function _ysu_multi_check_async
+    test -n "$_YSU_MULTI_ASYNC_FILE"; or return
+    test -f "$_YSU_MULTI_ASYNC_FILE.done"; or return
+
+    set -l result ""
+    if test -s "$_YSU_MULTI_ASYNC_FILE"
+        set result (cat "$_YSU_MULTI_ASYNC_FILE")
+    end
+
+    set -l cache_file "$YSU_LLM_CACHE_DIR/multi_$_YSU_MULTI_ASYNC_KEY"
+    if test -n "$result"
+        echo $result > "$cache_file"
+        _ysu_print "$YSU_LLM_PREFIX" "$result"
+    else
+        echo -n > "$cache_file"
+    end
+
+    rm -f "$_YSU_MULTI_ASYNC_FILE" "$_YSU_MULTI_ASYNC_FILE.done" 2>/dev/null
+    set -g _YSU_MULTI_ASYNC_FILE ""
+    set -g _YSU_MULTI_ASYNC_KEY ""
+end
+
+# ============================================================================
 # Feature 5: LLM configuration promo (low-frequency reminder)
 # ============================================================================
 
@@ -578,6 +757,11 @@ function _ysu_on_preexec --on-event fish_preexec
     # Save full command for LLM evaluation in postexec
     set -g _YSU_LLM_PENDING_CMD "$typed_command"
 
+    # Push to multi-command history buffer
+    if test "$YSU_LLM_ENABLED" = true; and test "$YSU_LLM_MODE" != single
+        _ysu_multi_push_cmd "$typed_command"
+    end
+
     # Strip sudo prefix for matching — check the actual command, not sudo itself
     set -l check_command $typed_command
     set -l _ysu_has_sudo false
@@ -615,28 +799,42 @@ end
 function _ysu_on_postexec --on-event fish_postexec
     set -l last_exit $status
 
-    # LLM: display completed async result from previous command
+    # LLM: display completed async results from previous commands
     if test "$YSU_LLM_ENABLED" = true
-        _ysu_llm_check_async
+        if test "$YSU_LLM_MODE" != multi
+            _ysu_llm_check_async
+        end
+        if test "$YSU_LLM_MODE" != single
+            _ysu_multi_check_async
+        end
     end
 
     # LLM: evaluate triggers for the just-finished command
     if test "$YSU_LLM_ENABLED" = true; and test -n "$_YSU_LLM_PENDING_CMD"
-        if _ysu_llm_should_trigger "$_YSU_LLM_PENDING_CMD" "$last_exit"
-            set -l cache_key (_ysu_llm_cache_key "$_YSU_LLM_PENDING_CMD")
-            set -l cache_file "$YSU_LLM_CACHE_DIR/$cache_key"
+        # Single-command mode
+        if test "$YSU_LLM_MODE" != multi
+            if _ysu_llm_should_trigger "$_YSU_LLM_PENDING_CMD" "$last_exit"
+                set -l cache_key (_ysu_llm_cache_key "$_YSU_LLM_PENDING_CMD")
+                set -l cache_file "$YSU_LLM_CACHE_DIR/$cache_key"
 
-            if test -f "$cache_file"
-                # Cache hit
-                if test -s "$cache_file"
-                    set -l cached (cat "$cache_file")
-                    test -n "$cached"; and _ysu_print "$YSU_LLM_PREFIX" "$cached"
+                if test -f "$cache_file"
+                    if test -s "$cache_file"
+                        set -l cached (cat "$cache_file")
+                        test -n "$cached"; and _ysu_print "$YSU_LLM_PREFIX" "$cached"
+                    end
+                else
+                    _ysu_llm_query_async "$_YSU_LLM_PENDING_CMD"
                 end
-            else
-                # Cache miss — fire async request
-                _ysu_llm_query_async "$_YSU_LLM_PENDING_CMD"
             end
         end
+
+        # Multi-command mode
+        if test "$YSU_LLM_MODE" != single
+            if _ysu_multi_should_trigger
+                _ysu_multi_query_async
+            end
+        end
+
         set -g _YSU_LLM_PENDING_CMD ""
     end
 
@@ -696,6 +894,10 @@ function _ysu_status
     echo -e "  Prefix:             \"$YSU_PREFIX\""
     echo -e "  Probability:        $YSU_PROBABILITY%"
     echo -e "  Cooldown:           "$YSU_COOLDOWN"s"
+    echo -e "  Install Hints:      "(test "$YSU_INSTALL_HINT" = true; and echo -e $check' enabled'; or echo -e $cross' disabled')
+    if test "$YSU_MESSAGE_FORMAT" != "{prefix} {arrow} {message}"
+        echo -e "  Message Format:     $YSU_MESSAGE_FORMAT"
+    end
     if test -n "$YSU_IGNORE_ALIASES"
         echo -e "  Ignored Aliases:    $YSU_IGNORE_ALIASES"
     end
@@ -742,6 +944,11 @@ function _ysu_status
     set -l cache_count 0
     if test -d "$YSU_LLM_CACHE_DIR"
         set cache_count (find "$YSU_LLM_CACHE_DIR" -maxdepth 1 -type f ! -name '.*' 2>/dev/null | wc -l | string trim)
+    end
+    echo -e "  Mode:               $YSU_LLM_MODE"
+    if test "$YSU_LLM_MODE" != single
+        echo -e "  Window Size:        $YSU_LLM_WINDOW_SIZE commands"
+        echo -e "  History Buffer:     "(count $_YSU_CMD_HISTORY)" commands"
     end
     echo -e "  Cache:              $cache_count entries"
 
@@ -849,6 +1056,9 @@ set -g YSU_PROBABILITY $YSU_PROBABILITY
 set -g YSU_COOLDOWN $YSU_COOLDOWN
 set -g YSU_LLM_API_URL \"$YSU_LLM_API_URL\"
 set -g YSU_LLM_API_KEY \"$YSU_LLM_API_KEY\"
-set -g YSU_LLM_MODEL \"$YSU_LLM_MODEL\"" > "$config_file"
+set -g YSU_LLM_MODEL \"$YSU_LLM_MODEL\"
+set -g YSU_LLM_MODE \"$YSU_LLM_MODE\"
+set -g YSU_INSTALL_HINT $YSU_INSTALL_HINT
+set -g YSU_MESSAGE_FORMAT \"$YSU_MESSAGE_FORMAT\"" > "$config_file"
     echo "  Saved to $config_file"
 end

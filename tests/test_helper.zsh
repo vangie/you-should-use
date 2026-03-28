@@ -38,6 +38,13 @@ _ysu_reset() {
   _YSU_PROMO_SHOWN_TODAY=0
   _YSU_PROMO_DATE=""
   _YSU_CMD_HAD_TIPS=false
+  YSU_INSTALL_HINT=true
+  YSU_MESSAGE_FORMAT="{prefix} {arrow} {message}"
+  YSU_LLM_MODE="single"
+  YSU_LLM_WINDOW_SIZE=5
+  _YSU_CMD_HISTORY=()
+  _YSU_MULTI_ASYNC_FILE=""
+  _YSU_MULTI_ASYNC_KEY=""
 }
 
 # Get buffered messages as plain text (strip ANSI codes)
