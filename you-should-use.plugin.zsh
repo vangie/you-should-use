@@ -129,7 +129,7 @@ typeset -gA YSU_MODERN_COMMANDS
 # The first installed alternative is suggested
 if [[ ${#YSU_MODERN_COMMANDS} -eq 0 ]]; then
   YSU_MODERN_COMMANDS=(
-    cat    "bat:Syntax highlighting, line numbers, git integration"
+    cat    "bat:Syntax highlighting, line numbers, git integration|glow:Terminal Markdown renderer"
     ls     "eza:Modern file listing with icons, git status, tree view|lsd:LSDeluxe - colorful ls with icons"
     find   "fd:Simpler syntax, faster, respects .gitignore"
     grep   "rg:Ripgrep - faster, respects .gitignore, better defaults|ag:The Silver Searcher - fast code search"
@@ -149,6 +149,9 @@ if [[ ${#YSU_MODERN_COMMANDS} -eq 0 ]]; then
     wget   "xh:Fast, friendly HTTP client (like httpie but faster)"
     time   "hyperfine:Benchmarking tool with statistical analysis"
     history "mcfly:Intelligent shell history search with neural network|atuin:Magical shell history with sync"
+    cloc   "tokei:Fast code line counter with language breakdown"
+    tree   "broot:Interactive directory tree with fuzzy search"
+    traceroute "mtr:Combined traceroute and ping with live display"
   )
 fi
 
@@ -183,6 +186,10 @@ if [[ ${#YSU_INSTALL_COMMANDS} -eq 0 ]]; then
     hyperfine "brew install hyperfine"
     mcfly     "brew install mcfly"
     atuin     "brew install atuin"
+    glow      "brew install glow"
+    tokei     "brew install tokei"
+    broot     "brew install broot"
+    mtr       "brew install mtr"
   )
 fi
 
