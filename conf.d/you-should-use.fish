@@ -769,7 +769,7 @@ function _ysu_status
     if test -f "$cfg_file"
         echo -e "  $check $cfg_file"
     else
-        echo -e "  $cross (none — using defaults)"
+        echo -e "  (using defaults — run \e[1;33mysu config\e[0m to customize)"
     end
     echo ""
 end

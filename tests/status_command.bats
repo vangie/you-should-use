@@ -252,5 +252,5 @@ strip_ansi() {
   '
   [ "$status" -eq 0 ]
   clean=$(strip_ansi "$output")
-  [[ "$clean" == *"none"*"using defaults"* ]]
+  [[ "$clean" == *"using defaults"*"ysu config"*"customize"* ]]
 }
