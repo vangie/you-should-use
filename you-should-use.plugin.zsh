@@ -37,6 +37,33 @@ local _ysu_config="${XDG_CONFIG_HOME:-$HOME/.config}/ysu/config.zsh"
 : ${YSU_LLM_CACHE_DIR:="$HOME/.cache/ysu"}
 
 # ============================================================================
+# Ollama auto-detection (runs once at plugin load, not every command)
+# ============================================================================
+
+if [[ -z "$_YSU_OLLAMA_CHECKED" ]]; then
+  typeset -g _YSU_OLLAMA_CHECKED=1
+  # Only auto-detect if user hasn't explicitly configured LLM
+  if [[ "$YSU_LLM_ENABLED" == "false" && -z "${YSU_LLM_ENABLED+set_by_user}" ]]; then
+    # Check if the config file explicitly set YSU_LLM_ENABLED
+    local _ysu_user_set_llm=false
+    if [[ -f "${XDG_CONFIG_HOME:-$HOME/.config}/ysu/config.zsh" ]]; then
+      grep -q 'YSU_LLM_ENABLED' "${XDG_CONFIG_HOME:-$HOME/.config}/ysu/config.zsh" 2>/dev/null && _ysu_user_set_llm=true
+    fi
+    if [[ "$_ysu_user_set_llm" == "false" ]]; then
+      # Probe Ollama at default port (quick timeout)
+      if curl -s --max-time 1 "http://localhost:11434/api/tags" >/dev/null 2>&1; then
+        # Ollama is running — check if default model is available
+        local _ysu_ollama_tags
+        _ysu_ollama_tags=$(curl -s --max-time 2 "http://localhost:11434/api/tags" 2>/dev/null)
+        if echo "$_ysu_ollama_tags" | grep -q "\"${YSU_LLM_MODEL}\"" 2>/dev/null; then
+          YSU_LLM_ENABLED=true
+        fi
+      fi
+    fi
+  fi
+fi
+
+# ============================================================================
 # Modern command alternatives mapping
 # ============================================================================
 
@@ -79,6 +106,8 @@ typeset -ga _YSU_MESSAGES=()
 typeset -g _YSU_LLM_PENDING_CMD=""
 typeset -g _YSU_LLM_ASYNC_FILE=""
 typeset -g _YSU_LLM_ASYNC_CMD=""
+typeset -g _YSU_PROMO_SHOWN_TODAY=0
+typeset -g _YSU_PROMO_DATE=""
 
 # ============================================================================
 # Helper functions
@@ -452,6 +481,44 @@ _ysu_llm_check_async() {
 }
 
 # ============================================================================
+# Feature 5: LLM configuration promo (low-frequency reminder)
+# ============================================================================
+
+_ysu_maybe_show_promo() {
+  # Only show when LLM is disabled
+  [[ "$YSU_LLM_ENABLED" != "false" ]] && return
+
+  # Rate limit: max 3 per day using cache file
+  local cache_dir="${YSU_LLM_CACHE_DIR:-$HOME/.cache/ysu}"
+  mkdir -p "$cache_dir"
+  local promo_file="$cache_dir/.promo_count"
+  local today
+  today=$(date +%Y-%m-%d)
+
+  # Reset counter on new day
+  if [[ "$_YSU_PROMO_DATE" != "$today" ]]; then
+    _YSU_PROMO_DATE="$today"
+    _YSU_PROMO_SHOWN_TODAY=0
+    # Also check persistent file
+    if [[ -f "$promo_file" ]]; then
+      local saved_date saved_count
+      saved_date=$(head -1 "$promo_file" 2>/dev/null)
+      saved_count=$(tail -1 "$promo_file" 2>/dev/null)
+      if [[ "$saved_date" == "$today" ]]; then
+        _YSU_PROMO_SHOWN_TODAY="${saved_count:-0}"
+      fi
+    fi
+  fi
+
+  [[ $_YSU_PROMO_SHOWN_TODAY -ge 3 ]] && return
+
+  # Show the promo
+  (( _YSU_PROMO_SHOWN_TODAY++ ))
+  printf '%s\n%s\n' "$today" "$_YSU_PROMO_SHOWN_TODAY" > "$promo_file"
+  echo -e "$(_ysu_format "" "Enable AI-powered suggestions! Run \e[1;33mysu config\e[0m to set up.")"
+}
+
+# ============================================================================
 # Hooks: collect in preexec, display in precmd
 # ============================================================================
 
@@ -488,6 +555,7 @@ _ysu_preexec() {
   # Priority 2: No inner suggestion, but sudo has an alias (e.g. _="sudo") → suggest that
   # Priority 3: Neither → no suggestion
   # Non-sudo commands: normal alias + modern check
+  local _ysu_tip_time_before=$_YSU_LAST_TIP_TIME
   _ysu_check_aliases "$check_command"
   _ysu_check_modern "$check_command"
 
@@ -495,6 +563,10 @@ _ysu_preexec() {
   if [[ ${#_YSU_MESSAGES} -eq 0 ]] && $_ysu_has_sudo; then
     _ysu_check_sudo_alias "$check_command"
   fi
+
+  # Track whether any tips were shown for this command (for promo gating)
+  typeset -g _YSU_CMD_HAD_TIPS=false
+  [[ $_YSU_LAST_TIP_TIME -ne $_ysu_tip_time_before ]] && _YSU_CMD_HAD_TIPS=true
 
   _ysu_flush
 }
@@ -528,6 +600,11 @@ _ysu_precmd() {
       fi
     fi
     _YSU_LLM_PENDING_CMD=""
+  fi
+
+  # Show LLM promo when no tips were shown for this command
+  if [[ "$_YSU_CMD_HAD_TIPS" == "false" ]]; then
+    _ysu_maybe_show_promo
   fi
 }
 

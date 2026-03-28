@@ -29,6 +29,32 @@ set -q YSU_LLM_MODEL; or set -g YSU_LLM_MODEL "qwen2.5-coder:7b"
 set -q YSU_LLM_CACHE_DIR; or set -g YSU_LLM_CACHE_DIR "$HOME/.cache/ysu"
 
 # ============================================================================
+# Ollama auto-detection (runs once at plugin load, not every command)
+# ============================================================================
+
+if not set -q _YSU_OLLAMA_CHECKED
+    set -g _YSU_OLLAMA_CHECKED 1
+    # Only auto-detect if user hasn't explicitly configured LLM
+    if test "$YSU_LLM_ENABLED" = false
+        set -l _ysu_user_set_llm false
+        set -l _ysu_cfg (set -q XDG_CONFIG_HOME; and echo "$XDG_CONFIG_HOME"; or echo "$HOME/.config")"/ysu/config.fish"
+        if test -f "$_ysu_cfg"
+            grep -q 'YSU_LLM_ENABLED' "$_ysu_cfg" 2>/dev/null; and set _ysu_user_set_llm true
+        end
+        if test "$_ysu_user_set_llm" = false
+            # Probe Ollama at default port (quick timeout)
+            if curl -s --max-time 1 "http://localhost:11434/api/tags" >/dev/null 2>&1
+                # Ollama is running — check if default model is available
+                set -l _ysu_ollama_tags (curl -s --max-time 2 "http://localhost:11434/api/tags" 2>/dev/null)
+                if echo "$_ysu_ollama_tags" | grep -q "\"$YSU_LLM_MODEL\"" 2>/dev/null
+                    set -g YSU_LLM_ENABLED true
+                end
+            end
+        end
+    end
+end
+
+# ============================================================================
 # Modern command alternatives mapping (parallel lists)
 # ============================================================================
 # Format: YSU_MODERN_KEYS[i] = legacy command
@@ -68,6 +94,8 @@ set -g _YSU_LAST_TIP_TIME 0
 set -g _YSU_LLM_PENDING_CMD ""
 set -g _YSU_LLM_ASYNC_FILE ""
 set -g _YSU_LLM_ASYNC_CMD ""
+set -g _YSU_PROMO_SHOWN_TODAY 0
+set -g _YSU_PROMO_DATE ""
 
 # ============================================================================
 # Helper functions
@@ -444,6 +472,43 @@ function _ysu_llm_check_async
 end
 
 # ============================================================================
+# Feature 5: LLM configuration promo (low-frequency reminder)
+# ============================================================================
+
+function _ysu_maybe_show_promo
+    # Only show when LLM is disabled
+    test "$YSU_LLM_ENABLED" = false; or return
+
+    # Rate limit: max 3 per day using cache file
+    set -l cache_dir "$YSU_LLM_CACHE_DIR"
+    test -n "$cache_dir"; or set cache_dir "$HOME/.cache/ysu"
+    mkdir -p "$cache_dir"
+    set -l promo_file "$cache_dir/.promo_count"
+    set -l today (date +%Y-%m-%d)
+
+    # Reset counter on new day
+    if test "$_YSU_PROMO_DATE" != "$today"
+        set -g _YSU_PROMO_DATE "$today"
+        set -g _YSU_PROMO_SHOWN_TODAY 0
+        # Check persistent file
+        if test -f "$promo_file"
+            set -l saved_date (head -1 "$promo_file" 2>/dev/null)
+            set -l saved_count (tail -1 "$promo_file" 2>/dev/null)
+            if test "$saved_date" = "$today"
+                set -g _YSU_PROMO_SHOWN_TODAY (math "$saved_count + 0")
+            end
+        end
+    end
+
+    test "$_YSU_PROMO_SHOWN_TODAY" -ge 3; and return
+
+    # Show the promo
+    set -g _YSU_PROMO_SHOWN_TODAY (math "$_YSU_PROMO_SHOWN_TODAY + 1")
+    printf '%s\n%s\n' "$today" "$_YSU_PROMO_SHOWN_TODAY" > "$promo_file"
+    _ysu_print "" "Enable AI-powered suggestions! Run \e[1;33mysu config\e[0m to set up."
+end
+
+# ============================================================================
 # Hooks
 # ============================================================================
 
@@ -479,6 +544,13 @@ function _ysu_on_preexec --on-event fish_preexec
     if test "$_ysu_has_sudo" = true -a "$_YSU_LAST_TIP_TIME" = "$tip_time_before"
         _ysu_check_sudo_alias $check_command
     end
+
+    # Track whether any tips were shown for this command (for promo gating)
+    if test "$_YSU_LAST_TIP_TIME" = "$tip_time_before"
+        set -g _YSU_CMD_HAD_TIPS false
+    else
+        set -g _YSU_CMD_HAD_TIPS true
+    end
 end
 
 function _ysu_on_postexec --on-event fish_postexec
@@ -507,6 +579,11 @@ function _ysu_on_postexec --on-event fish_postexec
             end
         end
         set -g _YSU_LLM_PENDING_CMD ""
+    end
+
+    # Show LLM promo when no tips were shown for this command
+    if test "$_YSU_CMD_HAD_TIPS" = false
+        _ysu_maybe_show_promo
     end
 end
 

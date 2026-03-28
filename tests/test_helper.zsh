@@ -34,6 +34,9 @@ _ysu_reset() {
   _YSU_LLM_PENDING_CMD=""
   _YSU_LLM_ASYNC_FILE=""
   _YSU_LLM_ASYNC_CMD=""
+  _YSU_PROMO_SHOWN_TODAY=0
+  _YSU_PROMO_DATE=""
+  _YSU_CMD_HAD_TIPS=false
 }
 
 # Get buffered messages as plain text (strip ANSI codes)
