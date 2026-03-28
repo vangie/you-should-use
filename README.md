@@ -6,7 +6,7 @@ A shell plugin that helps you work smarter by:
 2. **Modern Command Suggestions** — When you use legacy commands (cat, ls, find, grep, etc.), it suggests modern Rust/Go alternatives if they're installed
 3. **AI-Powered Suggestions** — Uses a local LLM (via Ollama) to suggest better ways to write your commands
 
-> Supports **Zsh**, **Fish**, and **Bash**.
+> Supports **Zsh**, **Fish**, **Bash**, and **Nushell**.
 
 ## Demos
 
@@ -107,6 +107,22 @@ echo 'source ~/.you-should-use/you-should-use.plugin.bash' >> ~/.bashrc
 
 > **Note:** Requires Bash 3.2+. Uses `DEBUG` trap for pre-execution hooks and `PROMPT_COMMAND` for post-execution processing.
 
+### Nushell
+
+Add to your `config.nu`:
+
+```nushell
+git clone https://github.com/vangie/you-should-use ~/.you-should-use
+```
+
+Then add to your `config.nu` or `env.nu`:
+
+```nushell
+source ~/.you-should-use/you-should-use.plugin.nu
+```
+
+> **Note:** Requires Nushell >= 0.80. Uses `pre_execution` hooks. Nushell support is experimental.
+
 ## Configuration
 
 All configuration is done via environment variables. Set them in your shell config **before** the plugin is loaded.
@@ -164,9 +180,12 @@ When a modern tool alternative is not installed, the plugin can show the install
 YSU_INSTALL_HINT=true         # Show install commands (default: true)
 ```
 
+The plugin auto-detects your package manager (brew, apt, pacman, dnf, zypper, apk, pkg) and generates appropriate install commands. WSL is also detected.
+
 Example output:
 ```
 💡 ➜ Try bat instead of cat — Syntax highlighting, line numbers (install: brew install bat)
+💡 ➜ Try bat instead of cat — Syntax highlighting, line numbers (install: sudo apt install bat)
 ```
 
 You can customize the install commands mapping:
@@ -228,7 +247,35 @@ YSU_LLM_WINDOW_SIZE=5        # Analyze the last 5 commands
 ysu status    # Show current configuration and statistics
 ysu config    # Interactive configuration wizard
 ysu cache     # Manage LLM suggestion cache (clear, size)
+ysu doctor    # Run diagnostics and check for issues
+ysu discover  # Analyze history and suggest aliases (optional: min count)
 ```
+
+### ysu doctor
+
+Runs comprehensive diagnostics:
+- Shell version compatibility
+- Hook registration status
+- Plugin load time
+- Config conflict detection
+- Package manager detection
+- LLM connection status
+- Dependency checks
+
+### ysu discover
+
+Scans your shell history for frequently typed multi-word commands and suggests creating aliases:
+
+```
+$ ysu discover
+  git checkout -b  (used 47 times)
+    alias gc='git checkout -b'
+
+  docker compose up  (used 23 times)
+    alias dcu='docker compose up'
+```
+
+Pass a threshold to customize: `ysu discover 3` (default: 5).
 
 ## Default Modern Command Mappings
 
@@ -253,7 +300,7 @@ ysu cache     # Manage LLM suggestion cache (clear, size)
 
 ## How It Works
 
-The plugin hooks into the shell's pre-execution mechanism (`preexec` in Zsh, `fish_preexec` event in Fish, `DEBUG` trap in Bash) to intercept commands before they run. It:
+The plugin hooks into the shell's pre-execution mechanism (`preexec` in Zsh, `fish_preexec` event in Fish, `DEBUG` trap in Bash, `pre_execution` hook in Nushell) to intercept commands before they run. It:
 
 1. Checks if you typed a command that matches an existing alias expansion (alias reminder)
 2. Checks if the command has a known modern alternative that is installed (tool suggestion)
@@ -270,6 +317,10 @@ All checks respect the probability and cooldown settings to avoid being annoying
 - [x] Custom message templates
 - [x] Multi-command workflow analysis
 - [x] Bash support
+- [x] Platform-aware install hints (auto-detect OS)
+- [x] Diagnostic command (`ysu doctor`)
+- [x] Alias discovery (`ysu discover`)
+- [x] Nushell support (experimental)
 
 ## License
 

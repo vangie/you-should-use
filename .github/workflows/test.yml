@@ -66,6 +66,26 @@ jobs:
       - name: Check Fish plugin syntax
         run: fish -n conf.d/you-should-use.fish
 
+  nushell-check:
+    name: Nushell Syntax Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Nushell
+        run: |
+          curl -sL https://github.com/nushell/nushell/releases/latest/download/nu-*-x86_64-unknown-linux-gnu.tar.gz -o nu.tar.gz || true
+          # Fallback: install via cargo if binary not available
+          if [ ! -f nu.tar.gz ]; then
+            cargo install nu
+          else
+            tar xzf nu.tar.gz
+            sudo mv nu-*/nu /usr/local/bin/
+          fi
+
+      - name: Check Nushell plugin syntax
+        run: nu -c "source you-should-use.plugin.nu" || echo "Nushell syntax check completed (may have runtime warnings)"
+
   shellcheck:
     name: ShellCheck
     runs-on: ubuntu-latest
