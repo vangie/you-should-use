@@ -1,0 +1,59 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    name: Run Tests
+    uses: ./.github/workflows/test.yml
+
+  release:
+    name: Create Release
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: v${{ steps.version.outputs.version }}
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
+
+  update-homebrew:
+    name: Update Homebrew Formula
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Update formula in homebrew-formula repo
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="${TAG#v}"
+
+          # Get current formula
+          FORMULA=$(gh api repos/vangie/homebrew-formula/contents/you-should-use.rb --jq '.content' | base64 -d)
+          SHA=$(gh api repos/vangie/homebrew-formula/contents/you-should-use.rb --jq '.sha')
+
+          # Update the tag in the formula
+          UPDATED=$(echo "$FORMULA" | sed "s/tag: \"v[^\"]*\"/tag: \"${TAG}\"/")
+
+          # Push updated formula
+          echo "$UPDATED" | base64 | gh api repos/vangie/homebrew-formula/contents/you-should-use.rb \
+            -X PUT \
+            -f message="you-should-use ${TAG}" \
+            -f content="$(echo "$UPDATED" | base64)" \
+            -f sha="$SHA"

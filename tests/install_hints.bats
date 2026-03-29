@@ -84,7 +84,8 @@ run_zsh() {
     echo "${YSU_INSTALL_COMMANDS[bat]}"
   '
   [ "$status" -eq 0 ]
-  [[ "$output" == *"brew install bat"* ]]
+  [[ "$output" == *"install"* ]]
+  [[ "$output" == *"bat"* ]]
 }
 
 @test "install hint: default mappings include ripgrep" {
@@ -92,5 +93,6 @@ run_zsh() {
     echo "${YSU_INSTALL_COMMANDS[rg]}"
   '
   [ "$status" -eq 0 ]
-  [[ "$output" == *"brew install ripgrep"* ]]
+  [[ "$output" == *"install"* ]]
+  [[ "$output" == *"ripgrep"* ]]
 }

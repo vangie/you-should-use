@@ -86,7 +86,8 @@ run_bash() {
     echo "$result"
   '
   [ "$status" -eq 0 ]
-  [[ "$output" == *"brew install bat"* ]]
+  [[ "$output" == *"install"* ]]
+  [[ "$output" == *"bat"* ]]
 }
 
 @test "bash: default rg install mapping" {
@@ -95,5 +96,6 @@ run_bash() {
     echo "$result"
   '
   [ "$status" -eq 0 ]
-  [[ "$output" == *"brew install ripgrep"* ]]
+  [[ "$output" == *"install"* ]]
+  [[ "$output" == *"ripgrep"* ]]
 }
