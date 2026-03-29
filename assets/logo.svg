@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a1b2e"/>
+      <stop offset="100%" style="stop-color:#2d1b4e"/>
+    </linearGradient>
+    <linearGradient id="glow" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#ffd700"/>
+      <stop offset="100%" style="stop-color:#ff8c00"/>
+    </linearGradient>
+    <linearGradient id="terminal" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#2a2d3e"/>
+      <stop offset="100%" style="stop-color:#1e2030"/>
+    </linearGradient>
+    <filter id="bulb-glow">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="soft-shadow">
+      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#000" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+
+  <!-- Background rounded square (transparent outside the rounded corners) -->
+  <rect x="16" y="16" width="480" height="480" rx="80" ry="80" fill="url(#bg)"/>
+
+  <!-- Terminal window -->
+  <rect x="56" y="100" width="400" height="280" rx="16" ry="16" fill="url(#terminal)" filter="url(#soft-shadow)"/>
+
+  <!-- Terminal title bar -->
+  <rect x="56" y="100" width="400" height="36" rx="16" ry="16" fill="#363a4f"/>
+  <rect x="56" y="120" width="400" height="16" fill="#363a4f"/>
+
+  <!-- Traffic light dots -->
+  <circle cx="82" cy="118" r="7" fill="#ed6a5e"/>
+  <circle cx="104" cy="118" r="7" fill="#f4bf4f"/>
+  <circle cx="126" cy="118" r="7" fill="#61c554"/>
+
+  <!-- Terminal prompt line 1: the "wrong" command -->
+  <text x="80" y="172" font-family="SF Mono, Menlo, Monaco, Consolas, monospace" font-size="20" fill="#8087a2">$</text>
+  <text x="100" y="172" font-family="SF Mono, Menlo, Monaco, Consolas, monospace" font-size="20" fill="#cad3f5">cat README.md</text>
+
+  <!-- Terminal prompt line 2: the suggestion with arrow -->
+  <text x="80" y="208" font-family="SF Mono, Menlo, Monaco, Consolas, monospace" font-size="20" fill="#f5a97f">YSU</text>
+  <text x="126" y="208" font-family="SF Mono, Menlo, Monaco, Consolas, monospace" font-size="20" fill="#8087a2"> ~></text>
+  <text x="172" y="208" font-family="SF Mono, Menlo, Monaco, Consolas, monospace" font-size="20" fill="#a6da95">bat README.md</text>
+
+  <!-- Terminal prompt line 3: install hint -->
+  <text x="80" y="244" font-family="SF Mono, Menlo, Monaco, Consolas, monospace" font-size="16" fill="#8087a2">brew install bat</text>
+
+  <!-- Terminal cursor blinking on line 4 -->
+  <text x="80" y="280" font-family="SF Mono, Menlo, Monaco, Consolas, monospace" font-size="20" fill="#8087a2">$</text>
+  <rect x="100" y="266" width="12" height="20" fill="#cad3f5" opacity="0.8">
+    <animate attributeName="opacity" values="0.8;0;0.8" dur="1.2s" repeatCount="indefinite"/>
+  </rect>
+
+  <!-- Lightbulb icon floating top-right -->
+  <g transform="translate(370, 60)" filter="url(#bulb-glow)">
+    <!-- Bulb body -->
+    <path d="M0,-32 C-18,-32 -28,-18 -28,0 C-28,12 -20,22 -12,28 L-12,36 L12,36 L12,28 C20,22 28,12 28,0 C28,-18 18,-32 0,-32 Z" fill="url(#glow)"/>
+    <!-- Bulb base -->
+    <rect x="-10" y="36" width="20" height="4" rx="1" fill="#c4a000"/>
+    <rect x="-8" y="42" width="16" height="4" rx="1" fill="#c4a000"/>
+    <rect x="-6" y="48" width="12" height="4" rx="3" fill="#c4a000"/>
+    <!-- Light rays -->
+    <line x1="0" y1="-44" x2="0" y2="-52" stroke="#ffd700" stroke-width="3" stroke-linecap="round"/>
+    <line x1="22" y1="-38" x2="28" y2="-44" stroke="#ffd700" stroke-width="3" stroke-linecap="round"/>
+    <line x1="-22" y1="-38" x2="-28" y2="-44" stroke="#ffd700" stroke-width="3" stroke-linecap="round"/>
+    <line x1="36" y1="-10" x2="44" y2="-10" stroke="#ffd700" stroke-width="3" stroke-linecap="round"/>
+    <line x1="-36" y1="-10" x2="-44" y2="-10" stroke="#ffd700" stroke-width="3" stroke-linecap="round"/>
+  </g>
+
+  <!-- Project name at bottom -->
+  <text x="256" y="430" font-family="SF Pro Display, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="32" font-weight="700" fill="#cad3f5" text-anchor="middle">you-should-use</text>
+  <text x="256" y="458" font-family="SF Pro Display, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="16" fill="#8087a2" text-anchor="middle">Smart Shell Suggestions</text>
+</svg>
