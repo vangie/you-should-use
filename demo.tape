@@ -13,7 +13,7 @@ Set Theme { "name": "Catppuccin", "black": "#1a1b2e", "red": "#ed8796", "green":
 Set TypingSpeed 60ms
 Set CursorBlink false
 
-# Setup: source the plugin and create demo aliases
+# Setup: source the plugin, create demo aliases, use a clean directory
 Hide
 Type "source ./you-should-use.plugin.zsh"
 Enter
@@ -30,6 +30,10 @@ Enter
 Type "alias tf='terraform'"
 Enter
 Type "export YSU_INSTALL_HINT=true"
+Enter
+Type "mkdir -p /tmp/ysu-demo && cd /tmp/ysu-demo"
+Enter
+Type "touch README.md config.yaml main.go go.mod"
 Enter
 Type "clear"
 Enter
