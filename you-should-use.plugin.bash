@@ -888,6 +888,18 @@ fi
 # Interactive configuration: ysu command
 # ============================================================================
 
+_ysu_install_method() {
+  local plugin_dir
+  plugin_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  if [[ "$plugin_dir" == *"/Cellar/"* ]] || [[ "$plugin_dir" == *"/homebrew/"* ]]; then
+    echo "homebrew"
+  elif [[ -d "$plugin_dir/.git" ]]; then
+    echo "git"
+  else
+    echo "unknown"
+  fi
+}
+
 ysu() {
   case "${1:-help}" in
     config) _ysu_config_wizard ;;
@@ -909,14 +921,61 @@ ysu() {
     status) _ysu_status ;;
     doctor) _ysu_doctor ;;
     discover) shift; _ysu_discover "$@" ;;
+    update)
+      local method
+      method=$(_ysu_install_method)
+      case "$method" in
+        homebrew)
+          echo "Installed via Homebrew. Run:"
+          echo "  brew upgrade you-should-use"
+          ;;
+        git)
+          local plugin_dir
+          plugin_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+          echo "Updating you-should-use..."
+          git -C "$plugin_dir" pull --ff-only && echo "Updated. Restart your shell: exec \$SHELL"
+          ;;
+        *) echo "Unknown install method. Update manually from https://github.com/vangie/you-should-use" ;;
+      esac
+      ;;
+    uninstall)
+      local method
+      method=$(_ysu_install_method)
+      case "$method" in
+        homebrew)
+          echo "Installed via Homebrew. Run:"
+          echo "  brew uninstall you-should-use"
+          ;;
+        git)
+          local plugin_dir
+          plugin_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+          echo "Uninstalling you-should-use..."
+          local rc_file="$HOME/.bashrc"
+          if [[ -f "$rc_file" ]]; then
+            local tmp_file
+            tmp_file=$(mktemp)
+            grep -vF "you-should-use" "$rc_file" > "$tmp_file" && mv "$tmp_file" "$rc_file"
+            echo "Cleaned $rc_file"
+          fi
+          rm -rf "$plugin_dir"
+          echo "Removed $plugin_dir"
+          rm -rf "${XDG_CONFIG_HOME:-$HOME/.config}/ysu"
+          rm -rf "${XDG_CACHE_HOME:-$HOME/.cache}/ysu"
+          echo "Uninstalled. Restart your shell: exec \$SHELL"
+          ;;
+        *) echo "Unknown install method. Uninstall manually." ;;
+      esac
+      ;;
     *)
       echo "Usage: ysu <command>"
       echo "Commands:"
-      echo "  config    Configure you-should-use interactively"
-      echo "  cache     Manage LLM suggestion cache"
-      echo "  status    Show current configuration and statistics"
-      echo "  doctor    Run diagnostics and check for issues"
-      echo "  discover  Analyze history and suggest aliases"
+      echo "  config      Configure you-should-use interactively"
+      echo "  cache       Manage LLM suggestion cache"
+      echo "  status      Show current configuration and statistics"
+      echo "  doctor      Run diagnostics and check for issues"
+      echo "  discover    Analyze history and suggest aliases"
+      echo "  update      Update you-should-use to the latest version"
+      echo "  uninstall   Remove you-should-use from your system"
       ;;
   esac
 }

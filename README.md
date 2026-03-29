@@ -34,7 +34,46 @@ See your full configuration at a glance with `ysu status`.
 
 [![asciicast](https://asciinema.org/a/876670.svg)](https://asciinema.org/a/876670)
 
+## Quick Start
+
+```bash
+# Homebrew (macOS — recommended)
+brew install vangie/formula/you-should-use
+
+# Or one-line install (auto-detects your shell)
+curl -fsSL https://raw.githubusercontent.com/vangie/you-should-use/main/install.sh | sh
+```
+
+Then follow the post-install instructions to add the source line to your shell config.
+
 ## Installation
+
+### Homebrew (macOS)
+
+```bash
+brew install vangie/formula/you-should-use
+```
+
+Then add to your shell config as shown in the post-install message:
+
+```bash
+# Zsh (~/.zshrc)
+source $(brew --prefix)/Cellar/you-should-use/*/you-should-use.plugin.zsh
+
+# Bash (~/.bashrc)
+source $(brew --prefix)/Cellar/you-should-use/*/you-should-use.plugin.bash
+
+# Fish
+ln -sf $(brew --prefix)/Cellar/you-should-use/*/conf.d/you-should-use.fish ~/.config/fish/conf.d/
+```
+
+### Install Script
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/vangie/you-should-use/main/install.sh | sh
+```
+
+Auto-detects your shell (zsh/bash/fish), clones the repo, and adds the source line to your rc file.
 
 ### oh-my-zsh
 
@@ -68,6 +107,18 @@ Add to your `.zsh_plugins.txt`:
 vangie/you-should-use
 ```
 
+### Fisher (Fish)
+
+```fish
+fisher install vangie/you-should-use
+```
+
+### Oh My Fish
+
+```fish
+omf install https://github.com/vangie/you-should-use
+```
+
 ### Manual (Zsh)
 
 ```bash
@@ -75,30 +126,14 @@ git clone https://github.com/vangie/you-should-use ~/.you-should-use
 echo 'source ~/.you-should-use/you-should-use.plugin.zsh' >> ~/.zshrc
 ```
 
-### Fish
-
-#### Using Fisher
-
-```fish
-fisher install vangie/you-should-use
-```
-
-#### Using Oh My Fish
-
-```fish
-omf install https://github.com/vangie/you-should-use
-```
-
-#### Manual (Fish)
+### Manual (Fish)
 
 ```fish
 git clone https://github.com/vangie/you-should-use ~/.you-should-use
-cp ~/.you-should-use/conf.d/you-should-use.fish ~/.config/fish/conf.d/
+ln -sf ~/.you-should-use/conf.d/you-should-use.fish ~/.config/fish/conf.d/
 ```
 
 ### Bash
-
-Add to your `~/.bashrc`:
 
 ```bash
 git clone https://github.com/vangie/you-should-use ~/.you-should-use
@@ -108,8 +143,6 @@ echo 'source ~/.you-should-use/you-should-use.plugin.bash' >> ~/.bashrc
 > **Note:** Requires Bash 3.2+. Uses `DEBUG` trap for pre-execution hooks and `PROMPT_COMMAND` for post-execution processing.
 
 ### Nushell
-
-Add to your `config.nu`:
 
 ```nushell
 git clone https://github.com/vangie/you-should-use ~/.you-should-use
@@ -122,6 +155,15 @@ source ~/.you-should-use/you-should-use.plugin.nu
 ```
 
 > **Note:** Requires Nushell >= 0.80. Uses `pre_execution` hooks. Nushell support is experimental.
+
+## Managing the Plugin
+
+```bash
+ysu update      # Update to the latest version
+ysu uninstall   # Remove from your system
+```
+
+These commands auto-detect your install method (Homebrew, oh-my-zsh, zinit, zplug, antidote, Fisher, Oh My Fish, or git clone) and provide the appropriate instructions.
 
 ## Configuration
 
@@ -244,11 +286,13 @@ YSU_LLM_WINDOW_SIZE=5        # Analyze the last 5 commands
 ## Commands
 
 ```bash
-ysu status    # Show current configuration and statistics
-ysu config    # Interactive configuration wizard
-ysu cache     # Manage LLM suggestion cache (clear, size)
-ysu doctor    # Run diagnostics and check for issues
-ysu discover  # Analyze history and suggest aliases (optional: min count)
+ysu status      # Show current configuration and statistics
+ysu config      # Interactive configuration wizard
+ysu cache       # Manage LLM suggestion cache (clear, size)
+ysu doctor      # Run diagnostics and check for issues
+ysu discover    # Analyze history and suggest aliases (optional: min count)
+ysu update      # Update to the latest version
+ysu uninstall   # Remove from your system
 ```
 
 ### ysu doctor
@@ -321,6 +365,8 @@ All checks respect the probability and cooldown settings to avoid being annoying
 - [x] Diagnostic command (`ysu doctor`)
 - [x] Alias discovery (`ysu discover`)
 - [x] Nushell support (experimental)
+- [x] Homebrew formula and install script
+- [x] Plugin lifecycle management (`ysu update`, `ysu uninstall`)
 
 ## License
 

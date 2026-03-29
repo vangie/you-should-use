@@ -117,6 +117,24 @@ run_bash() {
   [[ "$output" == *"doctor"* ]]
 }
 
+@test "bash: ysu help lists update" {
+  run_bash 'ysu help'
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"update"* ]]
+}
+
+@test "bash: ysu help lists uninstall" {
+  run_bash 'ysu help'
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"uninstall"* ]]
+}
+
+@test "bash: _ysu_install_method detects git install" {
+  run_bash '_ysu_install_method'
+  [ "$status" -eq 0 ]
+  [[ "$output" == "git" ]]
+}
+
 @test "bash: ysu status shows multi-command info when mode is both" {
   run_bash '
     YSU_LLM_MODE="both"

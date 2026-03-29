@@ -304,6 +304,30 @@ strip_ansi() {
   [[ "$output" == *"status"* ]]
 }
 
+@test "ysu help lists update command" {
+  run_zsh 'ysu help'
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"update"* ]]
+}
+
+@test "ysu help lists uninstall command" {
+  run_zsh 'ysu help'
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"uninstall"* ]]
+}
+
+@test "_ysu_install_method detects git install" {
+  run_zsh '_ysu_install_method'
+  [ "$status" -eq 0 ]
+  [[ "$output" == "git" ]]
+}
+
+@test "ysu update works for git installs" {
+  run_zsh 'ysu update'
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Updating"* ]] || [[ "$output" == *"Already up to date"* ]] || [[ "$output" == *"Updated"* ]]
+}
+
 # ---- Config file detection ----
 
 @test "ysu status shows no config file" {

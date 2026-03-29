@@ -907,6 +907,26 @@ end
 # Interactive configuration: ysu command
 # ============================================================================
 
+function _ysu_install_method
+    set -l plugin_file (status filename)
+    if string match -q '*/Cellar/*' "$plugin_file"; or string match -q '*/homebrew/*' "$plugin_file"
+        echo "homebrew"
+    else if functions -q fisher
+        # Check if installed via fisher
+        if fisher list 2>/dev/null | string match -q '*you-should-use*'
+            echo "fisher"
+            return
+        end
+        echo "git"
+    else if type -q omf
+        echo "omf"
+    else if test -d (dirname "$plugin_file")/.git
+        echo "git"
+    else
+        echo "unknown"
+    end
+end
+
 function ysu
     switch $argv[1]
         case config
@@ -929,14 +949,76 @@ function ysu
             _ysu_doctor
         case discover
             _ysu_discover $argv[2..-1]
+        case update
+            set -l method (_ysu_install_method)
+            switch $method
+                case homebrew
+                    echo "Installed via Homebrew. Run:"
+                    echo "  brew upgrade you-should-use"
+                case fisher
+                    echo "Installed via Fisher. Run:"
+                    echo "  fisher update vangie/you-should-use"
+                case omf
+                    echo "Installed via Oh My Fish. Run:"
+                    echo "  omf update you-should-use"
+                case git
+                    set -l plugin_dir (dirname (status filename))
+                    # If it's a symlink, follow to the repo
+                    if test -L (status filename)
+                        set plugin_dir (realpath (status filename) | xargs dirname)
+                    end
+                    echo "Updating you-should-use..."
+                    git -C "$plugin_dir" pull --ff-only; and echo "Updated. Restart your shell: exec fish"
+                case '*'
+                    echo "Unknown install method. Update manually from https://github.com/vangie/you-should-use"
+            end
+        case uninstall
+            set -l method (_ysu_install_method)
+            switch $method
+                case homebrew
+                    echo "Installed via Homebrew. Run:"
+                    echo "  brew uninstall you-should-use"
+                case fisher
+                    echo "Installed via Fisher. Run:"
+                    echo "  fisher remove vangie/you-should-use"
+                case omf
+                    echo "Installed via Oh My Fish. Run:"
+                    echo "  omf remove you-should-use"
+                case git
+                    set -l plugin_file (status filename)
+                    set -l conf_link "$HOME/.config/fish/conf.d/you-should-use.fish"
+                    echo "Uninstalling you-should-use..."
+                    if test -L "$conf_link"
+                        rm -f "$conf_link"
+                        echo "Removed symlink $conf_link"
+                    else if test -f "$conf_link"
+                        rm -f "$conf_link"
+                        echo "Removed $conf_link"
+                    end
+                    # Remove source repo if it's the standalone clone
+                    if test -L "$plugin_file"
+                        set -l repo_dir (realpath "$plugin_file" | xargs dirname | xargs dirname)
+                        if test -d "$repo_dir/.git"
+                            rm -rf "$repo_dir"
+                            echo "Removed $repo_dir"
+                        end
+                    end
+                    rm -rf (set -q XDG_CONFIG_HOME; and echo "$XDG_CONFIG_HOME"; or echo "$HOME/.config")"/ysu"
+                    rm -rf (set -q XDG_CACHE_HOME; and echo "$XDG_CACHE_HOME"; or echo "$HOME/.cache")"/ysu"
+                    echo "Uninstalled. Restart your shell: exec fish"
+                case '*'
+                    echo "Unknown install method. Uninstall manually."
+            end
         case '*'
             echo "Usage: ysu <command>"
             echo "Commands:"
-            echo "  config    Configure you-should-use interactively"
-            echo "  cache     Manage LLM suggestion cache"
-            echo "  status    Show current configuration and statistics"
-            echo "  doctor    Run diagnostics and check for issues"
-            echo "  discover  Analyze history and suggest aliases"
+            echo "  config      Configure you-should-use interactively"
+            echo "  cache       Manage LLM suggestion cache"
+            echo "  status      Show current configuration and statistics"
+            echo "  doctor      Run diagnostics and check for issues"
+            echo "  discover    Analyze history and suggest aliases"
+            echo "  update      Update you-should-use to the latest version"
+            echo "  uninstall   Remove you-should-use from your system"
     end
 end
 

@@ -920,6 +920,27 @@ add-zsh-hook precmd _ysu_precmd
 # Interactive configuration: ysu command
 # ============================================================================
 
+_ysu_install_method() {
+  local plugin_dir="${0:A:h}"
+  if [[ "$plugin_dir" == *"/Cellar/"* ]] || [[ "$plugin_dir" == *"/homebrew/"* ]]; then
+    echo "homebrew"
+  elif [[ -n "$ZSH_CUSTOM" && "$plugin_dir" == "$ZSH_CUSTOM"* ]]; then
+    echo "oh-my-zsh"
+  elif [[ -n "${ZINIT[HOME_DIR]}" && "$plugin_dir" == "${ZINIT[HOME_DIR]}"* ]] || \
+       [[ "$plugin_dir" == *"/.zinit/"* ]] || [[ "$plugin_dir" == *"/zinit/"* ]]; then
+    echo "zinit"
+  elif [[ -n "$ZPLUG_HOME" && "$plugin_dir" == "$ZPLUG_HOME"* ]]; then
+    echo "zplug"
+  elif [[ -n "$ANTIDOTE_HOME" && "$plugin_dir" == "$ANTIDOTE_HOME"* ]] || \
+       [[ "$plugin_dir" == *"/antidote/"* ]]; then
+    echo "antidote"
+  elif [[ -d "$plugin_dir/.git" ]]; then
+    echo "git"
+  else
+    echo "unknown"
+  fi
+}
+
 ysu() {
   case "${1:-help}" in
     config) _ysu_config_wizard ;;
@@ -941,14 +962,97 @@ ysu() {
     status) _ysu_status ;;
     doctor) _ysu_doctor ;;
     discover) _ysu_discover "${@:2}" ;;
+    update)
+      local method
+      method=$(_ysu_install_method)
+      case "$method" in
+        homebrew)
+          echo "Installed via Homebrew. Run:"
+          echo "  brew upgrade you-should-use"
+          ;;
+        oh-my-zsh)
+          echo "Installed via oh-my-zsh. Run:"
+          echo "  git -C \${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/you-should-use pull"
+          ;;
+        zinit)
+          echo "Installed via zinit. Run:"
+          echo "  zinit update vangie/you-should-use"
+          ;;
+        zplug)
+          echo "Installed via zplug. Run:"
+          echo "  zplug update vangie/you-should-use"
+          ;;
+        antidote)
+          echo "Installed via antidote. Run:"
+          echo "  antidote update vangie/you-should-use"
+          ;;
+        git)
+          echo "Updating you-should-use..."
+          git -C "${0:A:h}" pull --ff-only && echo "Updated. Restart your shell: exec \$SHELL"
+          ;;
+        *) echo "Unknown install method. Update manually from https://github.com/vangie/you-should-use" ;;
+      esac
+      ;;
+    uninstall)
+      local method
+      method=$(_ysu_install_method)
+      case "$method" in
+        homebrew)
+          echo "Installed via Homebrew. Run:"
+          echo "  brew uninstall you-should-use"
+          ;;
+        oh-my-zsh)
+          echo "Installed via oh-my-zsh. To uninstall:"
+          echo "  1. Remove 'you-should-use' from plugins=(...) in ~/.zshrc"
+          echo "  2. rm -rf \${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/you-should-use"
+          ;;
+        zinit)
+          echo "Installed via zinit. To uninstall:"
+          echo "  1. Remove the zinit light/load line from ~/.zshrc"
+          echo "  2. zinit delete vangie/you-should-use"
+          ;;
+        zplug)
+          echo "Installed via zplug. To uninstall:"
+          echo "  1. Remove the zplug line from ~/.zshrc"
+          echo "  2. zplug clean"
+          ;;
+        antidote)
+          echo "Installed via antidote. To uninstall:"
+          echo "  1. Remove vangie/you-should-use from .zsh_plugins.txt"
+          echo "  2. antidote update"
+          ;;
+        git)
+          local plugin_dir="${0:A:h}"
+          echo "Uninstalling you-should-use..."
+          # Remove source line from rc files
+          local rc_file="$HOME/.zshrc"
+          if [[ -f "$rc_file" ]]; then
+            local tmp_file
+            tmp_file=$(mktemp)
+            grep -vF "you-should-use" "$rc_file" > "$tmp_file" && mv "$tmp_file" "$rc_file"
+            echo "Cleaned $rc_file"
+          fi
+          # Remove plugin directory
+          rm -rf "$plugin_dir"
+          echo "Removed $plugin_dir"
+          # Remove config and cache
+          rm -rf "${XDG_CONFIG_HOME:-$HOME/.config}/ysu"
+          rm -rf "${XDG_CACHE_HOME:-$HOME/.cache}/ysu"
+          echo "Uninstalled. Restart your shell: exec \$SHELL"
+          ;;
+        *) echo "Unknown install method. Uninstall manually." ;;
+      esac
+      ;;
     *)
       echo "Usage: ysu <command>"
       echo "Commands:"
-      echo "  config    Configure you-should-use interactively"
-      echo "  cache     Manage LLM suggestion cache"
-      echo "  status    Show current configuration and statistics"
-      echo "  doctor    Run diagnostics and check for issues"
-      echo "  discover  Analyze history and suggest aliases"
+      echo "  config      Configure you-should-use interactively"
+      echo "  cache       Manage LLM suggestion cache"
+      echo "  status      Show current configuration and statistics"
+      echo "  doctor      Run diagnostics and check for issues"
+      echo "  discover    Analyze history and suggest aliases"
+      echo "  update      Update you-should-use to the latest version"
+      echo "  uninstall   Remove you-should-use from your system"
       ;;
   esac
 }
