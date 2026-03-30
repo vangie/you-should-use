@@ -1465,8 +1465,9 @@ _ysu_config_wizard() {
     echo "  4) Tip Probability:       ${YSU_PROBABILITY}%"
     echo "  5) Cooldown:              ${YSU_COOLDOWN}s"
     echo "  6) LLM Settings           →"
+    echo "  7) Theme:                 ${_YSU_C_BOLD}${YSU_THEME}${_YSU_C_RESET}"
     echo ""
-    echo -n "  Select (1-6, s=save, q=quit): "
+    echo -n "  Select (1-7, s=save, q=quit): "
     read -r choice
 
     case "$choice" in
@@ -1476,6 +1477,7 @@ _ysu_config_wizard() {
       4) echo -n "  Probability (1-100): "; read -r YSU_PROBABILITY ;;
       5) echo -n "  Cooldown (seconds): "; read -r YSU_COOLDOWN ;;
       6) _ysu_config_llm ;;
+      7) if [[ "$YSU_THEME" == "dark" ]]; then YSU_THEME=light; else YSU_THEME=dark; fi; _ysu_init_colors ;;
       s|S) _ysu_config_save "$config_dir" "$config_file" ;;
       q|Q) echo "  Settings applied to current session."; return ;;
     esac
@@ -1520,6 +1522,7 @@ YSU_LLM_MODEL="$YSU_LLM_MODEL"
 YSU_LLM_MODE="$YSU_LLM_MODE"
 YSU_INSTALL_HINT=$YSU_INSTALL_HINT
 YSU_MESSAGE_FORMAT="$YSU_MESSAGE_FORMAT"
+YSU_THEME="$YSU_THEME"
 EOF
   echo "  Saved to $config_file"
 }
