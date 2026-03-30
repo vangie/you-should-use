@@ -1542,12 +1542,13 @@ _ysu_config_wizard() {
 _ysu_config_theme() {
   local _dark_themes=("tokyo-night" "dracula" "monokai" "catppuccin-mocha")
   local _light_themes=("solarized" "catppuccin-latte" "github")
-  local choice
-  printf '\e7'
+  local choice _cur_theme _i _redraw=0
   while true; do
-    local _cur_theme
     [[ "$YSU_THEME" == "light" ]] && _cur_theme="$YSU_LIGHT_THEME" || _cur_theme="$YSU_DARK_THEME"
-    printf '\e8\e[J'
+    if (( _redraw )); then
+      printf '\e[15A\e[J'
+    fi
+    _redraw=1
     echo ""
     echo "${_YSU_C_BOLD}Theme Settings${_YSU_C_RESET}"
     echo "━━━━━━━━━━━━━━"
@@ -1568,17 +1569,17 @@ _ysu_config_theme() {
       m) [[ "$YSU_THEME" == "dark" ]] && YSU_THEME=light || YSU_THEME=dark; _ysu_init_colors ;;
       t)
         if [[ "$YSU_THEME" == "dark" ]]; then
-          local i; for i in {1..${#_dark_themes[@]}}; do
-            [[ "${_dark_themes[$i]}" == "$YSU_DARK_THEME" ]] && break
+          for _i in {1..${#_dark_themes[@]}}; do
+            [[ "${_dark_themes[$_i]}" == "$YSU_DARK_THEME" ]] && break
           done
-          (( i = i % ${#_dark_themes[@]} + 1 ))
-          YSU_DARK_THEME="${_dark_themes[$i]}"
+          _i=$(( _i % ${#_dark_themes[@]} + 1 ))
+          YSU_DARK_THEME="${_dark_themes[$_i]}"
         else
-          local i; for i in {1..${#_light_themes[@]}}; do
-            [[ "${_light_themes[$i]}" == "$YSU_LIGHT_THEME" ]] && break
+          for _i in {1..${#_light_themes[@]}}; do
+            [[ "${_light_themes[$_i]}" == "$YSU_LIGHT_THEME" ]] && break
           done
-          (( i = i % ${#_light_themes[@]} + 1 ))
-          YSU_LIGHT_THEME="${_light_themes[$i]}"
+          _i=$(( _i % ${#_light_themes[@]} + 1 ))
+          YSU_LIGHT_THEME="${_light_themes[$_i]}"
         fi
         _ysu_init_colors
         ;;
