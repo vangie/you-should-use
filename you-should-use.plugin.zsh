@@ -1559,7 +1559,7 @@ _ysu_config_theme() {
     echo "  ${_YSU_C_DIM}💡 Found alias:${_YSU_C_RESET} ${_YSU_C_COMMAND}git commit${_YSU_C_RESET} ${_YSU_C_ARROW}→${_YSU_C_RESET} ${_YSU_C_HIGHLIGHT}gc${_YSU_C_RESET}"
     echo "  ${_YSU_C_DIM}💡 Modern:${_YSU_C_RESET} ${_YSU_C_COMMAND}cat${_YSU_C_RESET} ${_YSU_C_ARROW}→${_YSU_C_RESET} ${_YSU_C_HIGHLIGHT}bat${_YSU_C_RESET} ${_YSU_C_HINT}(Syntax-highlighted cat)${_YSU_C_RESET}"
     echo ""
-    echo -n "  ${_YSU_C_DIM}↑↓/jk${_YSU_C_RESET} mode  ${_YSU_C_DIM}←→/hl${_YSU_C_RESET} theme  ${_YSU_C_DIM}b${_YSU_C_RESET} back  ${_YSU_C_DIM}q${_YSU_C_RESET} quit"
+    echo -n "  ${_YSU_C_BOLD}↑↓/jk${_YSU_C_RESET} ${_YSU_C_DIM}mode${_YSU_C_RESET}  ${_YSU_C_BOLD}←→/hl${_YSU_C_RESET} ${_YSU_C_DIM}theme${_YSU_C_RESET}  ${_YSU_C_BOLD}b${_YSU_C_RESET} ${_YSU_C_DIM}back${_YSU_C_RESET}  ${_YSU_C_BOLD}q${_YSU_C_RESET} ${_YSU_C_DIM}quit${_YSU_C_RESET}"
     read -sk 1 _key
     if [[ "$_key" == $'\e' ]]; then
       read -sk 2 _key
