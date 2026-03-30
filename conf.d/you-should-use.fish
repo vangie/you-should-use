@@ -189,6 +189,15 @@ if not set -q YSU_MODERN_KEYS
         "zellij:Modern terminal multiplexer with intuitive UI"
 end
 
+# Context-aware suggestions: suggest tools based on command + file extension
+if not set -q YSU_CONTEXT_KEYS
+    set -g YSU_CONTEXT_KEYS "diff:.json" "diff:.yaml" "diff:.yml"
+    set -g YSU_CONTEXT_VALS \
+        "jd:JSON diff and patch tool" \
+        "jd:JSON diff and patch tool (also handles YAML)" \
+        "jd:JSON diff and patch tool (also handles YAML)"
+end
+
 # ============================================================================
 # Platform detection for install hints
 # ============================================================================
@@ -436,6 +445,45 @@ function _ysu_check_modern
     set -l first_word (string split -m1 ' ' -- $typed_command)[1]
 
     _ysu_is_ignored_command $first_word; and return
+
+    # Context-aware check: inspect file extensions in arguments
+    set -l _args (string split ' ' -- $typed_command)
+    if test (count $_args) -gt 1
+        for _arg in $_args[2..-1]
+            set -l _ext (string match -r '\.([^.]+)$' -- $_arg)
+            if test (count $_ext) -ge 2
+                set -l _ctx_key "$first_word:.$_ext[2]"
+                for _ci in (seq (count $YSU_CONTEXT_KEYS))
+                    if test "$YSU_CONTEXT_KEYS[$_ci]" = "$_ctx_key"
+                        set -l _ctx_entry $YSU_CONTEXT_VALS[$_ci]
+                        set -l _ctx_cmd (string split -m1 ':' -- $_ctx_entry)[1]
+                        set -l _ctx_desc (string split -m1 ':' -- $_ctx_entry)[2]
+                        if command -q $_ctx_cmd
+                            _ysu_print "$YSU_SUGGEST_PREFIX" \
+                                "You should use $_YSU_C_HIGHLIGHT$_ctx_cmd$_YSU_C_RESET instead of $_YSU_C_COMMAND$first_word$_YSU_C_RESET — $_YSU_C_DIM$_ctx_desc$_YSU_C_RESET"
+                            _ysu_record_tip
+                            return
+                        else if test "$YSU_INSTALL_HINT" = true
+                            set -l _ctx_install ""
+                            for _ii in (seq (count $YSU_INSTALL_KEYS))
+                                if test "$YSU_INSTALL_KEYS[$_ii]" = "$_ctx_cmd"
+                                    set _ctx_install "$YSU_INSTALL_VALS[$_ii]"
+                                    break
+                                end
+                            end
+                            if test -n "$_ctx_install"
+                                _ysu_print "$YSU_SUGGEST_PREFIX" \
+                                    "Try $_YSU_C_HIGHLIGHT$_ctx_cmd$_YSU_C_RESET instead of $_YSU_C_COMMAND$first_word$_YSU_C_RESET — $_YSU_C_DIM$_ctx_desc$_YSU_C_RESET (install: $_YSU_C_HINT$_ctx_install$_YSU_C_RESET)"
+                                _ysu_record_tip
+                            end
+                            return
+                        end
+                        break
+                    end
+                end
+            end
+        end
+    end
 
     # Find the command in our mapping
     set -l idx 0

@@ -198,6 +198,17 @@ if [[ ${#YSU_MODERN_COMMANDS} -eq 0 ]]; then
   )
 fi
 
+# Context-aware suggestions: suggest tools based on command + file extension
+# Format: "command:.ext" → "tool:description"
+typeset -gA YSU_CONTEXT_COMMANDS
+if [[ ${#YSU_CONTEXT_COMMANDS} -eq 0 ]]; then
+  YSU_CONTEXT_COMMANDS=(
+    "diff:.json"  "jd:JSON diff and patch tool"
+    "diff:.yaml"  "jd:JSON diff and patch tool (also handles YAML)"
+    "diff:.yml"   "jd:JSON diff and patch tool (also handles YAML)"
+  )
+fi
+
 # ============================================================================
 # Platform detection for install hints
 # ============================================================================
@@ -496,6 +507,35 @@ _ysu_check_modern() {
   local first_word="${typed_command%% *}"
 
   _ysu_is_ignored_command "$first_word" && return
+
+  # Context-aware check: inspect file extensions in arguments
+  local _args="${typed_command#* }"
+  if [[ "$_args" != "$typed_command" ]]; then
+    local _arg _ext _ctx_key _ctx_entry _ctx_cmd _ctx_desc
+    for _arg in ${(z)_args}; do
+      _ext="${_arg##*.}"
+      [[ "$_ext" != "$_arg" && -n "$_ext" ]] || continue
+      _ctx_key="${first_word}:.${_ext}"
+      _ctx_entry="${YSU_CONTEXT_COMMANDS[$_ctx_key]}"
+      [[ -n "$_ctx_entry" ]] || continue
+      _ctx_cmd="${_ctx_entry%%:*}"
+      _ctx_desc="${_ctx_entry#*:}"
+      if command -v "$_ctx_cmd" &>/dev/null; then
+        _ysu_buffer "$YSU_SUGGEST_PREFIX" \
+          "You should use ${_YSU_C_HIGHLIGHT}${_ctx_cmd}${_YSU_C_RESET} instead of ${_YSU_C_COMMAND}${first_word}${_YSU_C_RESET} — ${_YSU_C_DIM}${_ctx_desc}${_YSU_C_RESET}"
+        _ysu_record_tip
+        return
+      elif [[ "$YSU_INSTALL_HINT" == "true" ]]; then
+        local _ctx_install="${YSU_INSTALL_COMMANDS[$_ctx_cmd]}"
+        if [[ -n "$_ctx_install" ]]; then
+          _ysu_buffer "$YSU_SUGGEST_PREFIX" \
+            "Try ${_YSU_C_HIGHLIGHT}${_ctx_cmd}${_YSU_C_RESET} instead of ${_YSU_C_COMMAND}${first_word}${_YSU_C_RESET} — ${_YSU_C_DIM}${_ctx_desc}${_YSU_C_RESET} (install: ${_YSU_C_HINT}${_ctx_install}${_YSU_C_RESET})"
+          _ysu_record_tip
+        fi
+        return
+      fi
+    done
+  fi
 
   # Check if the command has a modern alternative
   local mapping="${YSU_MODERN_COMMANDS[$first_word]}"
