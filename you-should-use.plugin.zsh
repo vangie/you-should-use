@@ -1618,13 +1618,13 @@ _ysu_config_llm() {
     echo "  b) API Key:   $([[ -n "$YSU_LLM_API_KEY" ]] && echo "••••${YSU_LLM_API_KEY: -4}" || echo '(not set)')"
     echo "  c) Model:     $YSU_LLM_MODEL"
     echo ""
-    echo -n "  Select (a-c, q=back): "
+    echo -n "  \e[7m a-c \e[0m select  \e[7m q \e[0m back: "
     read -r choice
 
     case "$choice" in
-      a) echo -n "  API URL: "; read -r YSU_LLM_API_URL ;;
-      b) echo -n "  API Key: "; read -r YSU_LLM_API_KEY ;;
-      c) echo -n "  Model: "; read -r YSU_LLM_MODEL ;;
+      a) vared -p "  API URL: " YSU_LLM_API_URL ;;
+      b) vared -p "  API Key: " YSU_LLM_API_KEY ;;
+      c) vared -p "  Model: " YSU_LLM_MODEL ;;
       q|Q) return ;;
     esac
   done
