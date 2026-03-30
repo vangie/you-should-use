@@ -1506,7 +1506,8 @@ function _ysu_config_wizard
         echo "  6) LLM Settings           →"
         echo "  7) Theme Settings         →"
         echo ""
-        read -P "  Select (1-7, s=save, q=quit): " choice
+        echo -ne "  \e[7m 1-7 \e[0m select  \e[7m q \e[0m quit: "
+        read choice
 
         switch $choice
             case 1
@@ -1523,24 +1524,31 @@ function _ysu_config_wizard
                 _ysu_config_llm
             case 7
                 _ysu_config_theme
-            case s S
-                _ysu_config_save "$config_dir" "$config_file"
+                or begin
+                    _ysu_config_save "$config_dir" "$config_file"
+                    return
+                end
             case q Q
-                echo "  Settings applied to current session."
+                _ysu_config_save "$config_dir" "$config_file"
                 return
+            case '*'
+                continue
         end
+        _ysu_config_save "$config_dir" "$config_file"
     end
 end
 
 function _ysu_config_theme
     set -l dark_themes tokyo-night dracula monokai catppuccin-mocha
     set -l light_themes solarized catppuccin-latte github
-
-    printf '\e7'
+    set -l redraw 0
     while true
         set -l cur_theme
         test "$YSU_THEME" = light; and set cur_theme "$YSU_LIGHT_THEME"; or set cur_theme "$YSU_DARK_THEME"
-        printf '\e8\e[J'
+        if test $redraw -eq 1
+            printf '\r\e[10A\e[J'
+        end
+        set redraw 1
         echo ""
         echo -e "$_YSU_C_BOLD""Theme Settings$_YSU_C_RESET"
         echo "━━━━━━━━━━━━━━"
@@ -1551,17 +1559,20 @@ function _ysu_config_theme
         echo -e "  $_YSU_C_DIM""💡 Found alias:$_YSU_C_RESET $_YSU_C_COMMAND""git commit$_YSU_C_RESET $_YSU_C_ARROW""→$_YSU_C_RESET $_YSU_C_HIGHLIGHT""gc$_YSU_C_RESET"
         echo -e "  $_YSU_C_DIM""💡 Modern:$_YSU_C_RESET $_YSU_C_COMMAND""cat$_YSU_C_RESET $_YSU_C_ARROW""→$_YSU_C_RESET $_YSU_C_HIGHLIGHT""bat$_YSU_C_RESET $_YSU_C_HINT""(Syntax-highlighted cat)$_YSU_C_RESET"
         echo ""
-        echo "  m) Toggle mode (dark ↔ light)"
-        echo "  t) Cycle theme"
-        echo "  q) Back"
-        echo ""
-        read -P "  Select: " choice
+        echo -ne "  \e[7m ↑↓/jk \e[0m mode  \e[7m ←→/hl \e[0m theme  \e[7m b \e[0m back  \e[7m q \e[0m quit"
+        # Read single character
+        stty -echo
+        set -l _key (dd bs=1 count=1 2>/dev/null)
+        if test "$_key" = \e
+            set _key (dd bs=1 count=2 2>/dev/null)
+        end
+        stty echo
 
-        switch $choice
-            case m
+        switch "$_key"
+            case '[A' k K '[B' j J
                 test "$YSU_THEME" = dark; and set -g YSU_THEME light; or set -g YSU_THEME dark
                 _ysu_init_colors
-            case t
+            case '[C' l L
                 if test "$YSU_THEME" = dark
                     set -l idx 1
                     for i in (seq (count $dark_themes))
@@ -1578,8 +1589,29 @@ function _ysu_config_theme
                     set -g YSU_LIGHT_THEME $light_themes[$idx]
                 end
                 _ysu_init_colors
+            case '[D' h H
+                if test "$YSU_THEME" = dark
+                    set -l idx 1
+                    for i in (seq (count $dark_themes))
+                        test "$dark_themes[$i]" = "$YSU_DARK_THEME"; and set idx $i; and break
+                    end
+                    set idx (math "($idx - 2 + "(count $dark_themes)") % "(count $dark_themes)" + 1")
+                    set -g YSU_DARK_THEME $dark_themes[$idx]
+                else
+                    set -l idx 1
+                    for i in (seq (count $light_themes))
+                        test "$light_themes[$i]" = "$YSU_LIGHT_THEME"; and set idx $i; and break
+                    end
+                    set idx (math "($idx - 2 + "(count $light_themes)") % "(count $light_themes)" + 1")
+                    set -g YSU_LIGHT_THEME $light_themes[$idx]
+                end
+                _ysu_init_colors
+            case b B
+                echo ""
+                return 0
             case q Q
-                return
+                echo ""
+                return 1
         end
     end
 end
@@ -1593,15 +1625,16 @@ function _ysu_config_llm
         echo -e "  b) API Key:   "(test -n "$YSU_LLM_API_KEY"; and echo "••••"(string sub -s -4 -- "$YSU_LLM_API_KEY"); or echo "(not set)")
         echo "  c) Model:     $YSU_LLM_MODEL"
         echo ""
-        read -P "  Select (a-c, q=back): " choice
+        echo -ne "  \e[7m a-c \e[0m select  \e[7m q \e[0m back: "
+        read choice
 
         switch $choice
             case a
-                read -P "  API URL: " YSU_LLM_API_URL
+                read -P "  API URL: " -c "$YSU_LLM_API_URL" YSU_LLM_API_URL
             case b
-                read -P "  API Key: " YSU_LLM_API_KEY
+                read -P "  API Key: " -c "$YSU_LLM_API_KEY" YSU_LLM_API_KEY
             case c
-                read -P "  Model: " YSU_LLM_MODEL
+                read -P "  Model: " -c "$YSU_LLM_MODEL" YSU_LLM_MODEL
             case q Q
                 return
         end
@@ -1627,5 +1660,4 @@ set -g YSU_MESSAGE_FORMAT \"$YSU_MESSAGE_FORMAT\"
 set -g YSU_THEME \"$YSU_THEME\"
 set -g YSU_DARK_THEME \"$YSU_DARK_THEME\"
 set -g YSU_LIGHT_THEME \"$YSU_LIGHT_THEME\"" > "$config_file"
-    echo "  Saved to $config_file"
 end

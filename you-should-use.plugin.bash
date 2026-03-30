@@ -1439,7 +1439,8 @@ _ysu_config_wizard() {
     echo "  6) LLM Settings           →"
     echo "  7) Theme Settings         →"
     echo ""
-    read -rp "  Select (1-7, s=save, q=quit): " choice
+    echo -ne "  \e[7m 1-7 \e[0m select  \e[7m q \e[0m quit: "
+    read -r choice
 
     case "$choice" in
       1) [[ "$YSU_REMINDER_ENABLED" == "true" ]] && YSU_REMINDER_ENABLED=false || YSU_REMINDER_ENABLED=true ;;
@@ -1448,22 +1449,24 @@ _ysu_config_wizard() {
       4) read -rp "  Probability (1-100): " YSU_PROBABILITY ;;
       5) read -rp "  Cooldown (seconds): " YSU_COOLDOWN ;;
       6) _ysu_config_llm ;;
-      7) _ysu_config_theme ;;
-      s|S) _ysu_config_save "$config_dir" "$config_file" ;;
-      q|Q) echo "  Settings applied to current session."; return ;;
+      7) _ysu_config_theme || { _ysu_config_save "$config_dir" "$config_file"; return; } ;;
+      q|Q) _ysu_config_save "$config_dir" "$config_file"; return ;;
+      *) continue ;;
     esac
+    _ysu_config_save "$config_dir" "$config_file"
   done
 }
 
 _ysu_config_theme() {
   local _dark_themes=("tokyo-night" "dracula" "monokai" "catppuccin-mocha")
   local _light_themes=("solarized" "catppuccin-latte" "github")
-  local choice
-  printf '\e7'
+  local _key _cur_theme _i _redraw=0
   while true; do
-    local _cur_theme
     [[ "$YSU_THEME" == "light" ]] && _cur_theme="$YSU_LIGHT_THEME" || _cur_theme="$YSU_DARK_THEME"
-    printf '\e8\e[J'
+    if (( _redraw )); then
+      printf '\r\e[10A\e[J'
+    fi
+    _redraw=1
     echo ""
     echo -e "${_YSU_C_BOLD}Theme Settings${_YSU_C_RESET}"
     echo "━━━━━━━━━━━━━━"
@@ -1474,32 +1477,50 @@ _ysu_config_theme() {
     echo -e "  ${_YSU_C_DIM}💡 Found alias:${_YSU_C_RESET} ${_YSU_C_COMMAND}git commit${_YSU_C_RESET} ${_YSU_C_ARROW}→${_YSU_C_RESET} ${_YSU_C_HIGHLIGHT}gc${_YSU_C_RESET}"
     echo -e "  ${_YSU_C_DIM}💡 Modern:${_YSU_C_RESET} ${_YSU_C_COMMAND}cat${_YSU_C_RESET} ${_YSU_C_ARROW}→${_YSU_C_RESET} ${_YSU_C_HIGHLIGHT}bat${_YSU_C_RESET} ${_YSU_C_HINT}(Syntax-highlighted cat)${_YSU_C_RESET}"
     echo ""
-    echo "  m) Toggle mode (dark ↔ light)"
-    echo "  t) Cycle theme"
-    echo "  q) Back"
-    echo ""
-    read -rp "  Select: " choice
-    case "$choice" in
-      m) [[ "$YSU_THEME" == "dark" ]] && YSU_THEME=light || YSU_THEME=dark; _ysu_init_colors ;;
-      t)
+    echo -ne "  \e[7m ↑↓/jk \e[0m mode  \e[7m ←→/hl \e[0m theme  \e[7m b \e[0m back  \e[7m q \e[0m quit"
+    IFS= read -rsn1 _key
+    if [[ "$_key" == $'\e' ]]; then
+      read -rsn2 _key
+    fi
+    case "$_key" in
+      '[A'|k|K|'[B'|j|J)
+        [[ "$YSU_THEME" == "dark" ]] && YSU_THEME=light || YSU_THEME=dark
+        _ysu_init_colors
+        ;;
+      '[C'|l|L)
         if [[ "$YSU_THEME" == "dark" ]]; then
-          local i found=0
-          for i in "${!_dark_themes[@]}"; do
-            [[ "${_dark_themes[$i]}" == "$YSU_DARK_THEME" ]] && { found=$i; break; }
+          for _i in "${!_dark_themes[@]}"; do
+            [[ "${_dark_themes[$_i]}" == "$YSU_DARK_THEME" ]] && break
           done
-          (( found = (found + 1) % ${#_dark_themes[@]} ))
-          YSU_DARK_THEME="${_dark_themes[$found]}"
+          _i=$(( (_i + 1) % ${#_dark_themes[@]} ))
+          YSU_DARK_THEME="${_dark_themes[$_i]}"
         else
-          local i found=0
-          for i in "${!_light_themes[@]}"; do
-            [[ "${_light_themes[$i]}" == "$YSU_LIGHT_THEME" ]] && { found=$i; break; }
+          for _i in "${!_light_themes[@]}"; do
+            [[ "${_light_themes[$_i]}" == "$YSU_LIGHT_THEME" ]] && break
           done
-          (( found = (found + 1) % ${#_light_themes[@]} ))
-          YSU_LIGHT_THEME="${_light_themes[$found]}"
+          _i=$(( (_i + 1) % ${#_light_themes[@]} ))
+          YSU_LIGHT_THEME="${_light_themes[$_i]}"
         fi
         _ysu_init_colors
         ;;
-      q|Q) return ;;
+      '[D'|h|H)
+        if [[ "$YSU_THEME" == "dark" ]]; then
+          for _i in "${!_dark_themes[@]}"; do
+            [[ "${_dark_themes[$_i]}" == "$YSU_DARK_THEME" ]] && break
+          done
+          _i=$(( (_i - 1 + ${#_dark_themes[@]}) % ${#_dark_themes[@]} ))
+          YSU_DARK_THEME="${_dark_themes[$_i]}"
+        else
+          for _i in "${!_light_themes[@]}"; do
+            [[ "${_light_themes[$_i]}" == "$YSU_LIGHT_THEME" ]] && break
+          done
+          _i=$(( (_i - 1 + ${#_light_themes[@]}) % ${#_light_themes[@]} ))
+          YSU_LIGHT_THEME="${_light_themes[$_i]}"
+        fi
+        _ysu_init_colors
+        ;;
+      b|B) echo ""; return 0 ;;
+      q|Q) echo ""; return 1 ;;
     esac
   done
 }
@@ -1514,12 +1535,13 @@ _ysu_config_llm() {
     echo -e "  b) API Key:   $([[ -n "$YSU_LLM_API_KEY" ]] && echo "••••${YSU_LLM_API_KEY: -4}" || echo '(not set)')"
     echo "  c) Model:     $YSU_LLM_MODEL"
     echo ""
-    read -rp "  Select (a-c, q=back): " choice
+    echo -ne "  \e[7m a-c \e[0m select  \e[7m q \e[0m back: "
+    read -r choice
 
     case "$choice" in
-      a) read -rp "  API URL: " YSU_LLM_API_URL ;;
-      b) read -rp "  API Key: " YSU_LLM_API_KEY ;;
-      c) read -rp "  Model: " YSU_LLM_MODEL ;;
+      a) read -erp "  API URL: " -i "$YSU_LLM_API_URL" YSU_LLM_API_URL ;;
+      b) read -erp "  API Key: " -i "$YSU_LLM_API_KEY" YSU_LLM_API_KEY ;;
+      c) read -erp "  Model: " -i "$YSU_LLM_MODEL" YSU_LLM_MODEL ;;
       q|Q) return ;;
     esac
   done
@@ -1545,5 +1567,4 @@ YSU_THEME="$YSU_THEME"
 YSU_DARK_THEME="$YSU_DARK_THEME"
 YSU_LIGHT_THEME="$YSU_LIGHT_THEME"
 EOF
-  echo "  Saved to $config_file"
 }
