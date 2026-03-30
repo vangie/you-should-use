@@ -1565,8 +1565,10 @@ _ysu_config_theme() {
       read -sk 2 _key
     fi
     case "$_key" in
-      '[A'|k|K) [[ "$YSU_THEME" != "dark" ]] && YSU_THEME=dark && _ysu_init_colors ;;
-      '[B'|j|J) [[ "$YSU_THEME" != "light" ]] && YSU_THEME=light && _ysu_init_colors ;;
+      '[A'|k|K|'[B'|j|J)
+        [[ "$YSU_THEME" == "dark" ]] && YSU_THEME=light || YSU_THEME=dark
+        _ysu_init_colors
+        ;;
       '[C'|l|L)
         if [[ "$YSU_THEME" == "dark" ]]; then
           for _i in {1..${#_dark_themes[@]}}; do
