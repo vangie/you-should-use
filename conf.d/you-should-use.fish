@@ -1491,173 +1491,28 @@ function _ysu_doctor
 end
 
 function _ysu_config_wizard
-    set -l config_dir (set -q XDG_CONFIG_HOME; and echo "$XDG_CONFIG_HOME"; or echo "$HOME/.config")"/ysu"
-    set -l config_file "$config_dir/config.fish"
-
-    while true
-        echo ""
-        echo -e "$_YSU_C_BOLD""You Should Use — Configuration$_YSU_C_RESET"
-        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        echo -e "  1) Alias Reminders:       "(test "$YSU_REMINDER_ENABLED" = true; and echo -e "$_YSU_C_OK✓ enabled$_YSU_C_RESET"; or echo -e "$_YSU_C_ERR✗ disabled$_YSU_C_RESET")
-        echo -e "  2) Modern Suggestions:    "(test "$YSU_SUGGEST_ENABLED" = true; and echo -e "$_YSU_C_OK✓ enabled$_YSU_C_RESET"; or echo -e "$_YSU_C_ERR✗ disabled$_YSU_C_RESET")
-        echo -e "  3) LLM Suggestions:       "(test "$YSU_LLM_ENABLED" = true; and echo -e "$_YSU_C_OK✓ enabled$_YSU_C_RESET"; or echo -e "$_YSU_C_ERR✗ disabled$_YSU_C_RESET")
-        echo "  4) Tip Probability:       $YSU_PROBABILITY%"
-        echo "  5) Cooldown:              "$YSU_COOLDOWN"s"
-        echo "  6) LLM Settings           →"
-        echo "  7) Theme Settings         →"
-        echo ""
-        echo -ne "  \e[7m 1-7 \e[0m select  \e[7m q \e[0m quit: "
-        read choice
-
-        switch $choice
-            case 1
-                test "$YSU_REMINDER_ENABLED" = true; and set -g YSU_REMINDER_ENABLED false; or set -g YSU_REMINDER_ENABLED true
-            case 2
-                test "$YSU_SUGGEST_ENABLED" = true; and set -g YSU_SUGGEST_ENABLED false; or set -g YSU_SUGGEST_ENABLED true
-            case 3
-                test "$YSU_LLM_ENABLED" = true; and set -g YSU_LLM_ENABLED false; or set -g YSU_LLM_ENABLED true
-            case 4
-                read -P "  Probability (1-100): " YSU_PROBABILITY
-            case 5
-                read -P "  Cooldown (seconds): " YSU_COOLDOWN
-            case 6
-                _ysu_config_llm
-            case 7
-                _ysu_config_theme
-                or begin
-                    _ysu_config_save "$config_dir" "$config_file"
-                    return
-                end
-            case q Q
-                _ysu_config_save "$config_dir" "$config_file"
-                return
-            case '*'
-                continue
-        end
-        _ysu_config_save "$config_dir" "$config_file"
+    set -l _script_dir (dirname (status filename))"/../bin"
+    # Resolve to absolute path if possible
+    if command -sq realpath
+        set _script_dir (realpath "$_script_dir")
     end
-end
-
-function _ysu_config_theme
-    set -l dark_themes tokyo-night dracula monokai catppuccin-mocha
-    set -l light_themes solarized catppuccin-latte github
-    set -l redraw 0
-    while true
-        set -l cur_theme
-        test "$YSU_THEME" = light; and set cur_theme "$YSU_LIGHT_THEME"; or set cur_theme "$YSU_DARK_THEME"
-        if test $redraw -eq 1
-            printf '\r\e[10A\e[J'
-        end
-        set redraw 1
-        echo ""
-        echo -e "$_YSU_C_BOLD""Theme Settings$_YSU_C_RESET"
-        echo "━━━━━━━━━━━━━━"
-        echo -e "  Mode:   $_YSU_C_BOLD$YSU_THEME$_YSU_C_RESET"
-        echo -e "  Theme:  $_YSU_C_BOLD$cur_theme$_YSU_C_RESET"
-        echo ""
-        echo "  Preview:"
-        echo -e "  $_YSU_C_DIM""💡 Found alias:$_YSU_C_RESET $_YSU_C_COMMAND""git commit$_YSU_C_RESET $_YSU_C_ARROW""→$_YSU_C_RESET $_YSU_C_HIGHLIGHT""gc$_YSU_C_RESET"
-        echo -e "  $_YSU_C_DIM""💡 Modern:$_YSU_C_RESET $_YSU_C_COMMAND""cat$_YSU_C_RESET $_YSU_C_ARROW""→$_YSU_C_RESET $_YSU_C_HIGHLIGHT""bat$_YSU_C_RESET $_YSU_C_HINT""(Syntax-highlighted cat)$_YSU_C_RESET"
-        echo ""
-        echo -ne "  \e[7m ↑↓/jk \e[0m mode  \e[7m ←→/hl \e[0m theme  \e[7m b \e[0m back  \e[7m q \e[0m quit"
-        # Read single character
-        stty -echo
-        set -l _key (dd bs=1 count=1 2>/dev/null)
-        if test "$_key" = \e
-            set _key (dd bs=1 count=2 2>/dev/null)
-        end
-        stty echo
-
-        switch "$_key"
-            case '[A' k K '[B' j J
-                test "$YSU_THEME" = dark; and set -g YSU_THEME light; or set -g YSU_THEME dark
-                _ysu_init_colors
-            case '[C' l L
-                if test "$YSU_THEME" = dark
-                    set -l idx 1
-                    for i in (seq (count $dark_themes))
-                        test "$dark_themes[$i]" = "$YSU_DARK_THEME"; and set idx $i; and break
-                    end
-                    set idx (math "$idx % "(count $dark_themes)" + 1")
-                    set -g YSU_DARK_THEME $dark_themes[$idx]
-                else
-                    set -l idx 1
-                    for i in (seq (count $light_themes))
-                        test "$light_themes[$i]" = "$YSU_LIGHT_THEME"; and set idx $i; and break
-                    end
-                    set idx (math "$idx % "(count $light_themes)" + 1")
-                    set -g YSU_LIGHT_THEME $light_themes[$idx]
-                end
-                _ysu_init_colors
-            case '[D' h H
-                if test "$YSU_THEME" = dark
-                    set -l idx 1
-                    for i in (seq (count $dark_themes))
-                        test "$dark_themes[$i]" = "$YSU_DARK_THEME"; and set idx $i; and break
-                    end
-                    set idx (math "($idx - 2 + "(count $dark_themes)") % "(count $dark_themes)" + 1")
-                    set -g YSU_DARK_THEME $dark_themes[$idx]
-                else
-                    set -l idx 1
-                    for i in (seq (count $light_themes))
-                        test "$light_themes[$i]" = "$YSU_LIGHT_THEME"; and set idx $i; and break
-                    end
-                    set idx (math "($idx - 2 + "(count $light_themes)") % "(count $light_themes)" + 1")
-                    set -g YSU_LIGHT_THEME $light_themes[$idx]
-                end
-                _ysu_init_colors
-            case b B
-                echo ""
-                return 0
-            case q Q
-                echo ""
-                return 1
-        end
-    end
-end
-
-function _ysu_config_llm
-    while true
-        echo ""
-        echo -e "$_YSU_C_BOLD""LLM Settings$_YSU_C_RESET"
-        echo "━━━━━━━━━━━━"
-        echo "  a) API URL:   $YSU_LLM_API_URL"
-        echo -e "  b) API Key:   "(test -n "$YSU_LLM_API_KEY"; and echo "••••"(string sub -s -4 -- "$YSU_LLM_API_KEY"); or echo "(not set)")
-        echo "  c) Model:     $YSU_LLM_MODEL"
-        echo ""
-        echo -ne "  \e[7m a-c \e[0m select  \e[7m q \e[0m back: "
-        read choice
-
-        switch $choice
-            case a
-                read -P "  API URL: " -c "$YSU_LLM_API_URL" YSU_LLM_API_URL
-            case b
-                read -P "  API Key: " -c "$YSU_LLM_API_KEY" YSU_LLM_API_KEY
-            case c
-                read -P "  Model: " -c "$YSU_LLM_MODEL" YSU_LLM_MODEL
-            case q Q
-                return
-        end
-    end
-end
-
-function _ysu_config_save
-    set -l config_dir $argv[1]
-    set -l config_file $argv[2]
-    mkdir -p "$config_dir"
-    echo "# You Should Use — Configuration (generated by ysu config)
-set -g YSU_REMINDER_ENABLED $YSU_REMINDER_ENABLED
-set -g YSU_SUGGEST_ENABLED $YSU_SUGGEST_ENABLED
-set -g YSU_LLM_ENABLED $YSU_LLM_ENABLED
-set -g YSU_PROBABILITY $YSU_PROBABILITY
-set -g YSU_COOLDOWN $YSU_COOLDOWN
-set -g YSU_LLM_API_URL \"$YSU_LLM_API_URL\"
-set -g YSU_LLM_API_KEY \"$YSU_LLM_API_KEY\"
-set -g YSU_LLM_MODEL \"$YSU_LLM_MODEL\"
-set -g YSU_LLM_MODE \"$YSU_LLM_MODE\"
-set -g YSU_INSTALL_HINT $YSU_INSTALL_HINT
-set -g YSU_MESSAGE_FORMAT \"$YSU_MESSAGE_FORMAT\"
-set -g YSU_THEME \"$YSU_THEME\"
-set -g YSU_DARK_THEME \"$YSU_DARK_THEME\"
-set -g YSU_LIGHT_THEME \"$YSU_LIGHT_THEME\"" > "$config_file"
+    set -l _script "$_script_dir/ysu-config.sh"
+    set -l _config_file (set -q XDG_CONFIG_HOME; and echo "$XDG_CONFIG_HOME"; or echo "$HOME/.config")"/ysu/config.fish"
+    set -lx YSU_REMINDER_ENABLED "$YSU_REMINDER_ENABLED"
+    set -lx YSU_SUGGEST_ENABLED "$YSU_SUGGEST_ENABLED"
+    set -lx YSU_LLM_ENABLED "$YSU_LLM_ENABLED"
+    set -lx YSU_PROBABILITY "$YSU_PROBABILITY"
+    set -lx YSU_COOLDOWN "$YSU_COOLDOWN"
+    set -lx YSU_LLM_API_URL "$YSU_LLM_API_URL"
+    set -lx YSU_LLM_API_KEY "$YSU_LLM_API_KEY"
+    set -lx YSU_LLM_MODEL "$YSU_LLM_MODEL"
+    set -lx YSU_LLM_MODE "$YSU_LLM_MODE"
+    set -lx YSU_INSTALL_HINT "$YSU_INSTALL_HINT"
+    set -lx YSU_MESSAGE_FORMAT "$YSU_MESSAGE_FORMAT"
+    set -lx YSU_THEME "$YSU_THEME"
+    set -lx YSU_DARK_THEME "$YSU_DARK_THEME"
+    set -lx YSU_LIGHT_THEME "$YSU_LIGHT_THEME"
+    bash "$_script" --format fish
+    test -f "$_config_file"; and source "$_config_file"
+    _ysu_init_colors
 end
