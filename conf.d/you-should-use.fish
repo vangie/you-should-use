@@ -32,30 +32,49 @@ set -q YSU_LLM_WINDOW_SIZE; or set -g YSU_LLM_WINDOW_SIZE 5
 set -q YSU_INSTALL_HINT; or set -g YSU_INSTALL_HINT true
 set -q YSU_MESSAGE_FORMAT; or set -g YSU_MESSAGE_FORMAT "{prefix} {arrow} {message}"
 
-# Theme: "dark" (default), "light", or "custom"
+# Theme settings
 set -q YSU_THEME; or set -g YSU_THEME "dark"
+set -q YSU_DARK_THEME; or set -g YSU_DARK_THEME "tokyo-night"
+set -q YSU_LIGHT_THEME; or set -g YSU_LIGHT_THEME "solarized"
 
-# Color initialization
+# Available themes (dark: tokyo-night, dracula, monokai, catppuccin-mocha)
+#                  (light: solarized, catppuccin-latte, github)
 function _ysu_init_colors
+    set -l theme_name
     if test "$YSU_THEME" = "light"
-        set -q YSU_COLOR_ARROW; and set -g _YSU_C_ARROW "$YSU_COLOR_ARROW"; or set -g _YSU_C_ARROW '\e[1;33m'
-        set -q YSU_COLOR_HIGHLIGHT; and set -g _YSU_C_HIGHLIGHT "$YSU_COLOR_HIGHLIGHT"; or set -g _YSU_C_HIGHLIGHT '\e[1;31m'
-        set -q YSU_COLOR_COMMAND; and set -g _YSU_C_COMMAND "$YSU_COLOR_COMMAND"; or set -g _YSU_C_COMMAND '\e[1;34m'
-        set -q YSU_COLOR_DIM; and set -g _YSU_C_DIM "$YSU_COLOR_DIM"; or set -g _YSU_C_DIM '\e[3;2m'
-        set -q YSU_COLOR_HINT; and set -g _YSU_C_HINT "$YSU_COLOR_HINT"; or set -g _YSU_C_HINT '\e[1;35m'
-        set -q YSU_COLOR_OK; and set -g _YSU_C_OK "$YSU_COLOR_OK"; or set -g _YSU_C_OK '\e[32m'
-        set -q YSU_COLOR_ERR; and set -g _YSU_C_ERR "$YSU_COLOR_ERR"; or set -g _YSU_C_ERR '\e[31m'
-        set -q YSU_COLOR_BOLD; and set -g _YSU_C_BOLD "$YSU_COLOR_BOLD"; or set -g _YSU_C_BOLD '\e[1m'
+        set theme_name "$YSU_LIGHT_THEME"
     else
-        set -q YSU_COLOR_ARROW; and set -g _YSU_C_ARROW "$YSU_COLOR_ARROW"; or set -g _YSU_C_ARROW '\e[1;93m'
-        set -q YSU_COLOR_HIGHLIGHT; and set -g _YSU_C_HIGHLIGHT "$YSU_COLOR_HIGHLIGHT"; or set -g _YSU_C_HIGHLIGHT '\e[1;31m'
-        set -q YSU_COLOR_COMMAND; and set -g _YSU_C_COMMAND "$YSU_COLOR_COMMAND"; or set -g _YSU_C_COMMAND '\e[1;36m'
-        set -q YSU_COLOR_DIM; and set -g _YSU_C_DIM "$YSU_COLOR_DIM"; or set -g _YSU_C_DIM '\e[3m'
-        set -q YSU_COLOR_HINT; and set -g _YSU_C_HINT "$YSU_COLOR_HINT"; or set -g _YSU_C_HINT '\e[1;33m'
-        set -q YSU_COLOR_OK; and set -g _YSU_C_OK "$YSU_COLOR_OK"; or set -g _YSU_C_OK '\e[32m'
-        set -q YSU_COLOR_ERR; and set -g _YSU_C_ERR "$YSU_COLOR_ERR"; or set -g _YSU_C_ERR '\e[31m'
-        set -q YSU_COLOR_BOLD; and set -g _YSU_C_BOLD "$YSU_COLOR_BOLD"; or set -g _YSU_C_BOLD '\e[1m'
+        set theme_name "$YSU_DARK_THEME"
     end
+
+    set -l arrow; set -l highlight; set -l command; set -l dim; set -l hint; set -l ok; set -l err; set -l bold
+    switch "$theme_name"
+        case tokyo-night
+            set arrow '\e[1;93m'; set highlight '\e[1;31m'; set command '\e[1;36m'; set dim '\e[3m'; set hint '\e[1;33m'; set ok '\e[32m'; set err '\e[31m'; set bold '\e[1m'
+        case dracula
+            set arrow '\e[38;5;141m'; set highlight '\e[1;38;5;212m'; set command '\e[38;5;117m'; set dim '\e[3;38;5;103m'; set hint '\e[38;5;84m'; set ok '\e[32m'; set err '\e[31m'; set bold '\e[1m'
+        case monokai
+            set arrow '\e[38;5;208m'; set highlight '\e[1;38;5;197m'; set command '\e[38;5;148m'; set dim '\e[3;38;5;242m'; set hint '\e[38;5;186m'; set ok '\e[32m'; set err '\e[31m'; set bold '\e[1m'
+        case catppuccin-mocha
+            set arrow '\e[38;5;180m'; set highlight '\e[1;38;5;211m'; set command '\e[38;5;153m'; set dim '\e[3;38;5;103m'; set hint '\e[38;5;223m'; set ok '\e[32m'; set err '\e[31m'; set bold '\e[1m'
+        case solarized
+            set arrow '\e[1;33m'; set highlight '\e[1;31m'; set command '\e[1;34m'; set dim '\e[3;2m'; set hint '\e[1;35m'; set ok '\e[32m'; set err '\e[31m'; set bold '\e[1m'
+        case catppuccin-latte
+            set arrow '\e[38;5;136m'; set highlight '\e[1;38;5;124m'; set command '\e[38;5;25m'; set dim '\e[3;38;5;145m'; set hint '\e[38;5;133m'; set ok '\e[32m'; set err '\e[31m'; set bold '\e[1m'
+        case github
+            set arrow '\e[38;5;130m'; set highlight '\e[1;38;5;124m'; set command '\e[38;5;24m'; set dim '\e[3;38;5;246m'; set hint '\e[38;5;90m'; set ok '\e[32m'; set err '\e[31m'; set bold '\e[1m'
+        case '*'
+            set arrow '\e[1;93m'; set highlight '\e[1;31m'; set command '\e[1;36m'; set dim '\e[3m'; set hint '\e[1;33m'; set ok '\e[32m'; set err '\e[31m'; set bold '\e[1m'
+    end
+
+    set -q YSU_COLOR_ARROW; and set -g _YSU_C_ARROW "$YSU_COLOR_ARROW"; or set -g _YSU_C_ARROW "$arrow"
+    set -q YSU_COLOR_HIGHLIGHT; and set -g _YSU_C_HIGHLIGHT "$YSU_COLOR_HIGHLIGHT"; or set -g _YSU_C_HIGHLIGHT "$highlight"
+    set -q YSU_COLOR_COMMAND; and set -g _YSU_C_COMMAND "$YSU_COLOR_COMMAND"; or set -g _YSU_C_COMMAND "$command"
+    set -q YSU_COLOR_DIM; and set -g _YSU_C_DIM "$YSU_COLOR_DIM"; or set -g _YSU_C_DIM "$dim"
+    set -q YSU_COLOR_HINT; and set -g _YSU_C_HINT "$YSU_COLOR_HINT"; or set -g _YSU_C_HINT "$hint"
+    set -q YSU_COLOR_OK; and set -g _YSU_C_OK "$YSU_COLOR_OK"; or set -g _YSU_C_OK "$ok"
+    set -q YSU_COLOR_ERR; and set -g _YSU_C_ERR "$YSU_COLOR_ERR"; or set -g _YSU_C_ERR "$err"
+    set -q YSU_COLOR_BOLD; and set -g _YSU_C_BOLD "$YSU_COLOR_BOLD"; or set -g _YSU_C_BOLD "$bold"
     set -g _YSU_C_RESET '\e[0m'
 end
 _ysu_init_colors
@@ -1436,7 +1455,7 @@ function _ysu_config_wizard
         echo "  4) Tip Probability:       $YSU_PROBABILITY%"
         echo "  5) Cooldown:              "$YSU_COOLDOWN"s"
         echo "  6) LLM Settings           →"
-        echo -e "  7) Theme:                 $_YSU_C_BOLD$YSU_THEME$_YSU_C_RESET"
+        echo "  7) Theme Settings         →"
         echo ""
         read -P "  Select (1-7, s=save, q=quit): " choice
 
@@ -1454,12 +1473,58 @@ function _ysu_config_wizard
             case 6
                 _ysu_config_llm
             case 7
-                test "$YSU_THEME" = dark; and set -g YSU_THEME light; or set -g YSU_THEME dark
-                _ysu_init_colors
+                _ysu_config_theme
             case s S
                 _ysu_config_save "$config_dir" "$config_file"
             case q Q
                 echo "  Settings applied to current session."
+                return
+        end
+    end
+end
+
+function _ysu_config_theme
+    set -l dark_themes tokyo-night dracula monokai catppuccin-mocha
+    set -l light_themes solarized catppuccin-latte github
+
+    while true
+        set -l active_theme
+        test "$YSU_THEME" = light; and set active_theme "$YSU_LIGHT_THEME"; or set active_theme "$YSU_DARK_THEME"
+        echo ""
+        echo -e "$_YSU_C_BOLD""Theme Settings$_YSU_C_RESET"
+        echo "━━━━━━━━━━━━━━"
+        echo -e "  Mode:         $_YSU_C_BOLD$YSU_THEME$_YSU_C_RESET (active: $_YSU_C_BOLD$active_theme$_YSU_C_RESET)"
+        echo -e "  Dark theme:   $_YSU_C_BOLD$YSU_DARK_THEME$_YSU_C_RESET"
+        echo -e "  Light theme:  $_YSU_C_BOLD$YSU_LIGHT_THEME$_YSU_C_RESET"
+        echo ""
+        echo "  m) Toggle mode (dark ↔ light)"
+        echo "  d) Cycle dark theme"
+        echo "  l) Cycle light theme"
+        echo "  q) Back"
+        echo ""
+        read -P "  Select: " choice
+
+        switch $choice
+            case m
+                test "$YSU_THEME" = dark; and set -g YSU_THEME light; or set -g YSU_THEME dark
+                _ysu_init_colors
+            case d
+                set -l idx 1
+                for i in (seq (count $dark_themes))
+                    test "$dark_themes[$i]" = "$YSU_DARK_THEME"; and set idx $i; and break
+                end
+                set idx (math "$idx % "(count $dark_themes)" + 1")
+                set -g YSU_DARK_THEME $dark_themes[$idx]
+                test "$YSU_THEME" = dark; and _ysu_init_colors
+            case l
+                set -l idx 1
+                for i in (seq (count $light_themes))
+                    test "$light_themes[$i]" = "$YSU_LIGHT_THEME"; and set idx $i; and break
+                end
+                set idx (math "$idx % "(count $light_themes)" + 1")
+                set -g YSU_LIGHT_THEME $light_themes[$idx]
+                test "$YSU_THEME" = light; and _ysu_init_colors
+            case q Q
                 return
         end
     end
@@ -1505,6 +1570,8 @@ set -g YSU_LLM_MODEL \"$YSU_LLM_MODEL\"
 set -g YSU_LLM_MODE \"$YSU_LLM_MODE\"
 set -g YSU_INSTALL_HINT $YSU_INSTALL_HINT
 set -g YSU_MESSAGE_FORMAT \"$YSU_MESSAGE_FORMAT\"
-set -g YSU_THEME \"$YSU_THEME\"" > "$config_file"
+set -g YSU_THEME \"$YSU_THEME\"
+set -g YSU_DARK_THEME \"$YSU_DARK_THEME\"
+set -g YSU_LIGHT_THEME \"$YSU_LIGHT_THEME\"" > "$config_file"
     echo "  Saved to $config_file"
 end

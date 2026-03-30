@@ -34,30 +34,44 @@ local _ysu_config="${XDG_CONFIG_HOME:-$HOME/.config}/ysu/config.zsh"
 # Message template (use {prefix}, {arrow}, {message} placeholders)
 : ${YSU_MESSAGE_FORMAT:="{prefix} {arrow} {message}"}
 
-# Theme: "dark" (default), "light", or "custom"
+# Theme settings
 : ${YSU_THEME:="dark"}
+: ${YSU_DARK_THEME:="tokyo-night"}
+: ${YSU_LIGHT_THEME:="solarized"}
 
-# Color initialization (based on theme, overridable via YSU_COLOR_* vars)
+# Available themes (dark: tokyo-night, dracula, monokai, catppuccin-mocha)
+#                  (light: solarized, catppuccin-latte, github)
 _ysu_init_colors() {
-  local -A _dark _light
-  _dark=(arrow '\e[1;93m' highlight '\e[1;31m' command '\e[1;36m' dim '\e[3m' hint '\e[1;33m' ok '\e[32m' err '\e[31m' bold '\e[1m')
-  _light=(arrow '\e[1;33m' highlight '\e[1;31m' command '\e[1;34m' dim '\e[3;2m' hint '\e[1;35m' ok '\e[32m' err '\e[31m' bold '\e[1m')
-
-  local -A _theme
+  local theme_name
   if [[ "$YSU_THEME" == "light" ]]; then
-    _theme=("${(@kv)_light}")
+    theme_name="$YSU_LIGHT_THEME"
   else
-    _theme=("${(@kv)_dark}")
+    theme_name="$YSU_DARK_THEME"
   fi
 
-  typeset -g _YSU_C_ARROW="${YSU_COLOR_ARROW:-${_theme[arrow]}}"
-  typeset -g _YSU_C_HIGHLIGHT="${YSU_COLOR_HIGHLIGHT:-${_theme[highlight]}}"
-  typeset -g _YSU_C_COMMAND="${YSU_COLOR_COMMAND:-${_theme[command]}}"
-  typeset -g _YSU_C_DIM="${YSU_COLOR_DIM:-${_theme[dim]}}"
-  typeset -g _YSU_C_HINT="${YSU_COLOR_HINT:-${_theme[hint]}}"
-  typeset -g _YSU_C_OK="${YSU_COLOR_OK:-${_theme[ok]}}"
-  typeset -g _YSU_C_ERR="${YSU_COLOR_ERR:-${_theme[err]}}"
-  typeset -g _YSU_C_BOLD="${YSU_COLOR_BOLD:-${_theme[bold]}}"
+  local -A _colors
+  case "$theme_name" in
+    # Dark themes
+    tokyo-night)      _colors=(arrow '\e[1;93m' highlight '\e[1;31m' command '\e[1;36m' dim '\e[3m' hint '\e[1;33m' ok '\e[32m' err '\e[31m' bold '\e[1m') ;;
+    dracula)          _colors=(arrow '\e[38;5;141m' highlight '\e[1;38;5;212m' command '\e[38;5;117m' dim '\e[3;38;5;103m' hint '\e[38;5;84m' ok '\e[32m' err '\e[31m' bold '\e[1m') ;;
+    monokai)          _colors=(arrow '\e[38;5;208m' highlight '\e[1;38;5;197m' command '\e[38;5;148m' dim '\e[3;38;5;242m' hint '\e[38;5;186m' ok '\e[32m' err '\e[31m' bold '\e[1m') ;;
+    catppuccin-mocha) _colors=(arrow '\e[38;5;180m' highlight '\e[1;38;5;211m' command '\e[38;5;153m' dim '\e[3;38;5;103m' hint '\e[38;5;223m' ok '\e[32m' err '\e[31m' bold '\e[1m') ;;
+    # Light themes
+    solarized)        _colors=(arrow '\e[1;33m' highlight '\e[1;31m' command '\e[1;34m' dim '\e[3;2m' hint '\e[1;35m' ok '\e[32m' err '\e[31m' bold '\e[1m') ;;
+    catppuccin-latte) _colors=(arrow '\e[38;5;136m' highlight '\e[1;38;5;124m' command '\e[38;5;25m' dim '\e[3;38;5;145m' hint '\e[38;5;133m' ok '\e[32m' err '\e[31m' bold '\e[1m') ;;
+    github)           _colors=(arrow '\e[38;5;130m' highlight '\e[1;38;5;124m' command '\e[38;5;24m' dim '\e[3;38;5;246m' hint '\e[38;5;90m' ok '\e[32m' err '\e[31m' bold '\e[1m') ;;
+    # Fallback
+    *)                _colors=(arrow '\e[1;93m' highlight '\e[1;31m' command '\e[1;36m' dim '\e[3m' hint '\e[1;33m' ok '\e[32m' err '\e[31m' bold '\e[1m') ;;
+  esac
+
+  typeset -g _YSU_C_ARROW="${YSU_COLOR_ARROW:-${_colors[arrow]}}"
+  typeset -g _YSU_C_HIGHLIGHT="${YSU_COLOR_HIGHLIGHT:-${_colors[highlight]}}"
+  typeset -g _YSU_C_COMMAND="${YSU_COLOR_COMMAND:-${_colors[command]}}"
+  typeset -g _YSU_C_DIM="${YSU_COLOR_DIM:-${_colors[dim]}}"
+  typeset -g _YSU_C_HINT="${YSU_COLOR_HINT:-${_colors[hint]}}"
+  typeset -g _YSU_C_OK="${YSU_COLOR_OK:-${_colors[ok]}}"
+  typeset -g _YSU_C_ERR="${YSU_COLOR_ERR:-${_colors[err]}}"
+  typeset -g _YSU_C_BOLD="${YSU_COLOR_BOLD:-${_colors[bold]}}"
   typeset -g _YSU_C_RESET='\e[0m'
 }
 _ysu_init_colors
@@ -1465,7 +1479,7 @@ _ysu_config_wizard() {
     echo "  4) Tip Probability:       ${YSU_PROBABILITY}%"
     echo "  5) Cooldown:              ${YSU_COOLDOWN}s"
     echo "  6) LLM Settings           →"
-    echo "  7) Theme:                 ${_YSU_C_BOLD}${YSU_THEME}${_YSU_C_RESET}"
+    echo "  7) Theme Settings         →"
     echo ""
     echo -n "  Select (1-7, s=save, q=quit): "
     read -r choice
@@ -1477,9 +1491,53 @@ _ysu_config_wizard() {
       4) echo -n "  Probability (1-100): "; read -r YSU_PROBABILITY ;;
       5) echo -n "  Cooldown (seconds): "; read -r YSU_COOLDOWN ;;
       6) _ysu_config_llm ;;
-      7) if [[ "$YSU_THEME" == "dark" ]]; then YSU_THEME=light; else YSU_THEME=dark; fi; _ysu_init_colors ;;
+      7) _ysu_config_theme ;;
       s|S) _ysu_config_save "$config_dir" "$config_file" ;;
       q|Q) echo "  Settings applied to current session."; return ;;
+    esac
+  done
+}
+
+_ysu_config_theme() {
+  local _dark_themes=("tokyo-night" "dracula" "monokai" "catppuccin-mocha")
+  local _light_themes=("solarized" "catppuccin-latte" "github")
+  local choice
+  while true; do
+    local active_theme
+    [[ "$YSU_THEME" == "light" ]] && active_theme="$YSU_LIGHT_THEME" || active_theme="$YSU_DARK_THEME"
+    echo ""
+    echo "${_YSU_C_BOLD}Theme Settings${_YSU_C_RESET}"
+    echo "━━━━━━━━━━━━━━"
+    echo "  Mode:         ${_YSU_C_BOLD}${YSU_THEME}${_YSU_C_RESET} (active: ${_YSU_C_BOLD}${active_theme}${_YSU_C_RESET})"
+    echo "  Dark theme:   ${_YSU_C_BOLD}${YSU_DARK_THEME}${_YSU_C_RESET}"
+    echo "  Light theme:  ${_YSU_C_BOLD}${YSU_LIGHT_THEME}${_YSU_C_RESET}"
+    echo ""
+    echo "  m) Toggle mode (dark ↔ light)"
+    echo "  d) Cycle dark theme"
+    echo "  l) Cycle light theme"
+    echo "  q) Back"
+    echo ""
+    echo -n "  Select: "
+    read -r choice
+    case "$choice" in
+      m) [[ "$YSU_THEME" == "dark" ]] && YSU_THEME=light || YSU_THEME=dark; _ysu_init_colors ;;
+      d)
+        local i; for i in {1..${#_dark_themes[@]}}; do
+          [[ "${_dark_themes[$i]}" == "$YSU_DARK_THEME" ]] && break
+        done
+        (( i = i % ${#_dark_themes[@]} + 1 ))
+        YSU_DARK_THEME="${_dark_themes[$i]}"
+        [[ "$YSU_THEME" == "dark" ]] && _ysu_init_colors
+        ;;
+      l)
+        local i; for i in {1..${#_light_themes[@]}}; do
+          [[ "${_light_themes[$i]}" == "$YSU_LIGHT_THEME" ]] && break
+        done
+        (( i = i % ${#_light_themes[@]} + 1 ))
+        YSU_LIGHT_THEME="${_light_themes[$i]}"
+        [[ "$YSU_THEME" == "light" ]] && _ysu_init_colors
+        ;;
+      q|Q) return ;;
     esac
   done
 }
@@ -1523,6 +1581,8 @@ YSU_LLM_MODE="$YSU_LLM_MODE"
 YSU_INSTALL_HINT=$YSU_INSTALL_HINT
 YSU_MESSAGE_FORMAT="$YSU_MESSAGE_FORMAT"
 YSU_THEME="$YSU_THEME"
+YSU_DARK_THEME="$YSU_DARK_THEME"
+YSU_LIGHT_THEME="$YSU_LIGHT_THEME"
 EOF
   echo "  Saved to $config_file"
 }
