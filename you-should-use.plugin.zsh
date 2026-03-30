@@ -1542,11 +1542,11 @@ _ysu_config_wizard() {
 _ysu_config_theme() {
   local _dark_themes=("tokyo-night" "dracula" "monokai" "catppuccin-mocha")
   local _light_themes=("solarized" "catppuccin-latte" "github")
-  local choice _cur_theme _i _redraw=0
+  local _key _cur_theme _i _redraw=0
   while true; do
     [[ "$YSU_THEME" == "light" ]] && _cur_theme="$YSU_LIGHT_THEME" || _cur_theme="$YSU_DARK_THEME"
     if (( _redraw )); then
-      printf '\e[15A\e[J'
+      printf '\r\e[10A\e[J'
     fi
     _redraw=1
     echo ""
@@ -1559,15 +1559,15 @@ _ysu_config_theme() {
     echo "  ${_YSU_C_DIM}💡 Found alias:${_YSU_C_RESET} ${_YSU_C_COMMAND}git commit${_YSU_C_RESET} ${_YSU_C_ARROW}→${_YSU_C_RESET} ${_YSU_C_HIGHLIGHT}gc${_YSU_C_RESET}"
     echo "  ${_YSU_C_DIM}💡 Modern:${_YSU_C_RESET} ${_YSU_C_COMMAND}cat${_YSU_C_RESET} ${_YSU_C_ARROW}→${_YSU_C_RESET} ${_YSU_C_HIGHLIGHT}bat${_YSU_C_RESET} ${_YSU_C_HINT}(Syntax-highlighted cat)${_YSU_C_RESET}"
     echo ""
-    echo "  m) Toggle mode (dark ↔ light)"
-    echo "  t) Cycle theme"
-    echo "  q) Back"
-    echo ""
-    echo -n "  Select: "
-    read -r choice
-    case "$choice" in
-      m) [[ "$YSU_THEME" == "dark" ]] && YSU_THEME=light || YSU_THEME=dark; _ysu_init_colors ;;
-      t)
+    echo -n "  ${_YSU_C_DIM}↑↓/jk${_YSU_C_RESET} mode  ${_YSU_C_DIM}←→/hl${_YSU_C_RESET} theme  ${_YSU_C_DIM}q${_YSU_C_RESET} back"
+    read -sk 1 _key
+    if [[ "$_key" == $'\e' ]]; then
+      read -sk 2 _key
+    fi
+    case "$_key" in
+      '[A'|k|K) [[ "$YSU_THEME" != "dark" ]] && YSU_THEME=dark && _ysu_init_colors ;;
+      '[B'|j|J) [[ "$YSU_THEME" != "light" ]] && YSU_THEME=light && _ysu_init_colors ;;
+      '[C'|l|L)
         if [[ "$YSU_THEME" == "dark" ]]; then
           for _i in {1..${#_dark_themes[@]}}; do
             [[ "${_dark_themes[$_i]}" == "$YSU_DARK_THEME" ]] && break
@@ -1583,7 +1583,23 @@ _ysu_config_theme() {
         fi
         _ysu_init_colors
         ;;
-      q|Q) return ;;
+      '[D'|h|H)
+        if [[ "$YSU_THEME" == "dark" ]]; then
+          for _i in {1..${#_dark_themes[@]}}; do
+            [[ "${_dark_themes[$_i]}" == "$YSU_DARK_THEME" ]] && break
+          done
+          _i=$(( (_i - 2 + ${#_dark_themes[@]}) % ${#_dark_themes[@]} + 1 ))
+          YSU_DARK_THEME="${_dark_themes[$_i]}"
+        else
+          for _i in {1..${#_light_themes[@]}}; do
+            [[ "${_light_themes[$_i]}" == "$YSU_LIGHT_THEME" ]] && break
+          done
+          _i=$(( (_i - 2 + ${#_light_themes[@]}) % ${#_light_themes[@]} + 1 ))
+          YSU_LIGHT_THEME="${_light_themes[$_i]}"
+        fi
+        _ysu_init_colors
+        ;;
+      q|Q) echo ""; return ;;
     esac
   done
 }
