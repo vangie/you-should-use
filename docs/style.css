@@ -362,6 +362,13 @@ table code {
   color: var(--green);
 }
 
+/* highlight.js overrides to match Catppuccin theme */
+.code-block pre code.hljs,
+.tab-content pre code.hljs {
+  background: transparent;
+  padding: 0;
+}
+
 .copy-btn {
   position: absolute;
   top: 8px;
