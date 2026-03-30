@@ -1535,16 +1535,27 @@ end
 function _ysu_config_theme
     set -l dark_themes tokyo-night dracula monokai catppuccin-mocha
     set -l light_themes solarized catppuccin-latte github
+    set -l menu_lines 16
+    set -l redraw 0
 
     while true
         set -l active_theme
         test "$YSU_THEME" = light; and set active_theme "$YSU_LIGHT_THEME"; or set active_theme "$YSU_DARK_THEME"
+        # In-place redraw: move cursor up and clear previous menu
+        if test $redraw -eq 1
+            printf '\e[%dA\e[J' $menu_lines
+        end
+        set redraw 1
         echo ""
         echo -e "$_YSU_C_BOLD""Theme Settings$_YSU_C_RESET"
         echo "━━━━━━━━━━━━━━"
         echo -e "  Mode:         $_YSU_C_BOLD$YSU_THEME$_YSU_C_RESET (active: $_YSU_C_BOLD$active_theme$_YSU_C_RESET)"
         echo -e "  Dark theme:   $_YSU_C_BOLD$YSU_DARK_THEME$_YSU_C_RESET"
         echo -e "  Light theme:  $_YSU_C_BOLD$YSU_LIGHT_THEME$_YSU_C_RESET"
+        echo ""
+        echo "  Preview:"
+        echo -e "  $_YSU_C_DIM""💡 Found alias:$_YSU_C_RESET $_YSU_C_COMMAND""git commit$_YSU_C_RESET $_YSU_C_ARROW""→$_YSU_C_RESET $_YSU_C_HIGHLIGHT""gc$_YSU_C_RESET"
+        echo -e "  $_YSU_C_DIM""💡 Modern:$_YSU_C_RESET $_YSU_C_COMMAND""cat$_YSU_C_RESET $_YSU_C_ARROW""→$_YSU_C_RESET $_YSU_C_HIGHLIGHT""bat$_YSU_C_RESET $_YSU_C_HINT""(Syntax-highlighted cat)$_YSU_C_RESET"
         echo ""
         echo "  m) Toggle mode (dark ↔ light)"
         echo "  d) Cycle dark theme"
