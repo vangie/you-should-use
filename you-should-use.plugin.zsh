@@ -34,6 +34,34 @@ local _ysu_config="${XDG_CONFIG_HOME:-$HOME/.config}/ysu/config.zsh"
 # Message template (use {prefix}, {arrow}, {message} placeholders)
 : ${YSU_MESSAGE_FORMAT:="{prefix} {arrow} {message}"}
 
+# Theme: "dark" (default), "light", or "custom"
+: ${YSU_THEME:="dark"}
+
+# Color initialization (based on theme, overridable via YSU_COLOR_* vars)
+_ysu_init_colors() {
+  local -A _dark _light
+  _dark=(arrow '\e[1;93m' highlight '\e[1;31m' command '\e[1;36m' dim '\e[3m' hint '\e[1;33m' ok '\e[32m' err '\e[31m' bold '\e[1m')
+  _light=(arrow '\e[1;33m' highlight '\e[1;31m' command '\e[1;34m' dim '\e[3;2m' hint '\e[1;35m' ok '\e[32m' err '\e[31m' bold '\e[1m')
+
+  local -A _theme
+  if [[ "$YSU_THEME" == "light" ]]; then
+    _theme=("${(@kv)_light}")
+  else
+    _theme=("${(@kv)_dark}")
+  fi
+
+  typeset -g _YSU_C_ARROW="${YSU_COLOR_ARROW:-${_theme[arrow]}}"
+  typeset -g _YSU_C_HIGHLIGHT="${YSU_COLOR_HIGHLIGHT:-${_theme[highlight]}}"
+  typeset -g _YSU_C_COMMAND="${YSU_COLOR_COMMAND:-${_theme[command]}}"
+  typeset -g _YSU_C_DIM="${YSU_COLOR_DIM:-${_theme[dim]}}"
+  typeset -g _YSU_C_HINT="${YSU_COLOR_HINT:-${_theme[hint]}}"
+  typeset -g _YSU_C_OK="${YSU_COLOR_OK:-${_theme[ok]}}"
+  typeset -g _YSU_C_ERR="${YSU_COLOR_ERR:-${_theme[err]}}"
+  typeset -g _YSU_C_BOLD="${YSU_COLOR_BOLD:-${_theme[bold]}}"
+  typeset -g _YSU_C_RESET='\e[0m'
+}
+_ysu_init_colors
+
 # LLM settings (OpenAI-compatible API — works with Ollama, OpenAI, etc.)
 : ${YSU_LLM_API_URL:="http://localhost:11434/v1/chat/completions"}
 : ${YSU_LLM_API_KEY:=""}
@@ -261,8 +289,8 @@ typeset -g _YSU_MULTI_ASYNC_KEY=""
 _ysu_format() {
   local prefix="$YSU_PREFIX"
   [[ -n "$1" ]] && prefix="$prefix$1"
-  local arrow="\e[1;93m➜\e[0m"
-  local message="$2\e[0m"
+  local arrow="${_YSU_C_ARROW}➜${_YSU_C_RESET}"
+  local message="$2${_YSU_C_RESET}"
   local result="$YSU_MESSAGE_FORMAT"
   result="${result//\{prefix\}/$prefix}"
   result="${result//\{arrow\}/$arrow}"
@@ -430,7 +458,7 @@ _ysu_check_aliases() {
 
   if [[ -n "$found_alias" ]]; then
     _ysu_buffer "$YSU_REMINDER_PREFIX" \
-      "You should use \e[1;31m${found_alias}\e[0m instead of \e[1;36m${found_expanded}\e[0m"
+      "You should use ${_YSU_C_HIGHLIGHT}${found_alias}${_YSU_C_RESET} instead of ${_YSU_C_COMMAND}${found_expanded}${_YSU_C_RESET}"
     _ysu_record_tip
   fi
 }
@@ -473,7 +501,7 @@ _ysu_check_modern() {
       [[ "${alias_val%% *}" == "$modern_cmd" ]] && return
 
       _ysu_buffer "$YSU_SUGGEST_PREFIX" \
-        "You should use \e[1;31m${modern_cmd}\e[0m instead of \e[1;36m${first_word}\e[0m — \e[3m${description}\e[0m"
+        "You should use ${_YSU_C_HIGHLIGHT}${modern_cmd}${_YSU_C_RESET} instead of ${_YSU_C_COMMAND}${first_word}${_YSU_C_RESET} — ${_YSU_C_DIM}${description}${_YSU_C_RESET}"
       _ysu_record_tip
       return
     elif [[ -z "$_ysu_first_uninstalled" ]]; then
@@ -486,7 +514,7 @@ _ysu_check_modern() {
   # No installed alternative found — show install hint for the first one
   if [[ "$YSU_INSTALL_HINT" == "true" && -n "$_ysu_first_uninstalled" && -n "$_ysu_first_uninstalled_install" ]]; then
     _ysu_buffer "$YSU_SUGGEST_PREFIX" \
-      "Try \e[1;31m${_ysu_first_uninstalled}\e[0m instead of \e[1;36m${first_word}\e[0m — \e[3m${_ysu_first_uninstalled_desc}\e[0m (install: \e[1;33m${_ysu_first_uninstalled_install}\e[0m)"
+      "Try ${_YSU_C_HIGHLIGHT}${_ysu_first_uninstalled}${_YSU_C_RESET} instead of ${_YSU_C_COMMAND}${first_word}${_YSU_C_RESET} — ${_YSU_C_DIM}${_ysu_first_uninstalled_desc}${_YSU_C_RESET} (install: ${_YSU_C_HINT}${_ysu_first_uninstalled_install}${_YSU_C_RESET})"
     _ysu_record_tip
   fi
 }
@@ -505,7 +533,7 @@ _ysu_check_sudo_alias() {
     # Match aliases whose value is "sudo" or "sudo " (trailing space for alias chaining)
     if [[ "$alias_value" == "sudo" || "$alias_value" == "sudo " ]]; then
       _ysu_buffer "$YSU_REMINDER_PREFIX" \
-        "You should use \e[1;31m${alias_name} ${inner_command}\e[0m instead of \e[1;36msudo ${inner_command}\e[0m"
+        "You should use ${_YSU_C_HIGHLIGHT}${alias_name} ${inner_command}${_YSU_C_RESET} instead of ${_YSU_C_COMMAND}sudo ${inner_command}${_YSU_C_RESET}"
       _ysu_record_tip
       return
     fi
@@ -801,7 +829,7 @@ _ysu_maybe_show_promo() {
   # Show the promo
   (( _YSU_PROMO_SHOWN_TODAY++ ))
   printf '%s\n%s\n' "$today" "$_YSU_PROMO_SHOWN_TODAY" > "$promo_file"
-  echo -e "$(_ysu_format "" "Enable AI-powered suggestions! Run \e[1;33mysu config\e[0m to set up.")"
+  echo -e "$(_ysu_format "" "Enable AI-powered suggestions! Run ${_YSU_C_HINT}ysu config${_YSU_C_RESET} to set up.")"
 }
 
 # ============================================================================
@@ -1058,7 +1086,7 @@ ysu() {
 }
 
 _ysu_status() {
-  local green='\e[32m' red='\e[31m' yellow='\e[1;33m' cyan='\e[1;36m' bold='\e[1m' reset='\e[0m'
+  local green="$_YSU_C_OK" red="$_YSU_C_ERR" yellow="$_YSU_C_HINT" cyan="$_YSU_C_COMMAND" bold="$_YSU_C_BOLD" reset="$_YSU_C_RESET"
   local check="${green}✓${reset}" cross="${red}✗${reset}"
 
   echo ""
@@ -1156,7 +1184,7 @@ _ysu_status() {
   if [[ -f "$cfg_file" ]]; then
     echo -e "  ${check} ${cfg_file}"
   else
-    echo -e "  (using defaults — run \e[1;33mysu config\e[0m to customize)"
+    echo -e "  (using defaults — run ${_YSU_C_HINT}ysu config${_YSU_C_RESET} to customize)"
   fi
   echo ""
 }
@@ -1164,7 +1192,7 @@ _ysu_status() {
 _ysu_discover() {
   local min_count=${1:-5}  # minimum occurrences to suggest
   local min_words=2        # minimum words in command to be worth aliasing
-  local bold='\e[1m' reset='\e[0m' cyan='\e[1;36m' yellow='\e[1;33m' green='\e[32m'
+  local bold="$_YSU_C_BOLD" reset="$_YSU_C_RESET" cyan="$_YSU_C_COMMAND" yellow="$_YSU_C_HINT" green="$_YSU_C_OK"
 
   echo ""
   echo -e "${bold}🔍 Alias Discovery${reset}"
@@ -1255,7 +1283,7 @@ _ysu_suggest_alias_name() {
 }
 
 _ysu_doctor() {
-  local green='\e[32m' red='\e[31m' yellow='\e[1;33m' bold='\e[1m' reset='\e[0m'
+  local green="$_YSU_C_OK" red="$_YSU_C_ERR" yellow="$_YSU_C_HINT" bold="$_YSU_C_BOLD" reset="$_YSU_C_RESET"
   local check="${green}✓${reset}" cross="${red}✗${reset}" warn="${yellow}!${reset}"
   local issues=0
 
@@ -1429,11 +1457,11 @@ _ysu_config_wizard() {
 
   while true; do
     echo ""
-    echo "\e[1mYou Should Use — Configuration\e[0m"
+    echo "${_YSU_C_BOLD}You Should Use — Configuration${_YSU_C_RESET}"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo "  1) Alias Reminders:       $([[ "$YSU_REMINDER_ENABLED" == "true" ]] && echo '\e[32m✓ enabled\e[0m' || echo '\e[31m✗ disabled\e[0m')"
-    echo "  2) Modern Suggestions:    $([[ "$YSU_SUGGEST_ENABLED" == "true" ]] && echo '\e[32m✓ enabled\e[0m' || echo '\e[31m✗ disabled\e[0m')"
-    echo "  3) LLM Suggestions:       $([[ "$YSU_LLM_ENABLED" == "true" ]] && echo '\e[32m✓ enabled\e[0m' || echo '\e[31m✗ disabled\e[0m')"
+    echo "  1) Alias Reminders:       $([[ "$YSU_REMINDER_ENABLED" == "true" ]] && echo "${_YSU_C_OK}✓ enabled${_YSU_C_RESET}" || echo "${_YSU_C_ERR}✗ disabled${_YSU_C_RESET}")"
+    echo "  2) Modern Suggestions:    $([[ "$YSU_SUGGEST_ENABLED" == "true" ]] && echo "${_YSU_C_OK}✓ enabled${_YSU_C_RESET}" || echo "${_YSU_C_ERR}✗ disabled${_YSU_C_RESET}")"
+    echo "  3) LLM Suggestions:       $([[ "$YSU_LLM_ENABLED" == "true" ]] && echo "${_YSU_C_OK}✓ enabled${_YSU_C_RESET}" || echo "${_YSU_C_ERR}✗ disabled${_YSU_C_RESET}")"
     echo "  4) Tip Probability:       ${YSU_PROBABILITY}%"
     echo "  5) Cooldown:              ${YSU_COOLDOWN}s"
     echo "  6) LLM Settings           →"
@@ -1458,7 +1486,7 @@ _ysu_config_llm() {
   local choice
   while true; do
     echo ""
-    echo "\e[1mLLM Settings\e[0m"
+    echo "${_YSU_C_BOLD}LLM Settings${_YSU_C_RESET}"
     echo "━━━━━━━━━━━━"
     echo "  a) API URL:   $YSU_LLM_API_URL"
     echo "  b) API Key:   $([[ -n "$YSU_LLM_API_KEY" ]] && echo "••••${YSU_LLM_API_KEY: -4}" || echo '(not set)')"

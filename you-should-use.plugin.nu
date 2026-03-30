@@ -32,6 +32,26 @@ $env.YSU_LLM_CACHE_DIR = ($env.YSU_LLM_CACHE_DIR? | default $"($env.HOME)/.cache
 $env.YSU_LLM_MODE = ($env.YSU_LLM_MODE? | default "single")
 $env.YSU_LLM_WINDOW_SIZE = ($env.YSU_LLM_WINDOW_SIZE? | default 5)
 
+# Theme: "dark" (default), "light", or "custom"
+$env.YSU_THEME = ($env.YSU_THEME? | default "dark")
+
+# Color initialization
+if $env.YSU_THEME == "light" {
+    $env._YSU_C_HIGHLIGHT = ($env.YSU_COLOR_HIGHLIGHT? | default (ansi -e "1;31m"))
+    $env._YSU_C_COMMAND = ($env.YSU_COLOR_COMMAND? | default (ansi -e "1;34m"))
+    $env._YSU_C_DIM = ($env.YSU_COLOR_DIM? | default (ansi -e "3;2m"))
+    $env._YSU_C_HINT = ($env.YSU_COLOR_HINT? | default (ansi -e "1;35m"))
+} else {
+    $env._YSU_C_HIGHLIGHT = ($env.YSU_COLOR_HIGHLIGHT? | default (ansi red_bold))
+    $env._YSU_C_COMMAND = ($env.YSU_COLOR_COMMAND? | default (ansi cyan_bold))
+    $env._YSU_C_DIM = ($env.YSU_COLOR_DIM? | default (ansi italic))
+    $env._YSU_C_HINT = ($env.YSU_COLOR_HINT? | default (ansi yellow_bold))
+}
+$env._YSU_C_OK = ($env.YSU_COLOR_OK? | default (ansi green))
+$env._YSU_C_ERR = ($env.YSU_COLOR_ERR? | default (ansi red))
+$env._YSU_C_BOLD = ($env.YSU_COLOR_BOLD? | default (ansi attr_bold))
+$env._YSU_C_RESET = (ansi reset)
+
 # Internal state
 $env._YSU_LAST_TIP_TIME = 0
 $env._YSU_MESSAGES = []
@@ -206,7 +226,7 @@ def _ysu_check_aliases [typed_command: string] {
     }
 
     if $best_alias != "" {
-        let msg = _ysu_format $env.YSU_REMINDER_PREFIX $"Use alias (ansi red_bold)($best_alias)(ansi reset) instead of (ansi cyan_bold)($best_match)(ansi reset)"
+        let msg = _ysu_format $env.YSU_REMINDER_PREFIX $"Use alias ($env._YSU_C_HIGHLIGHT)($best_alias)($env._YSU_C_RESET) instead of ($env._YSU_C_COMMAND)($best_match)($env._YSU_C_RESET)"
         print $msg
         $env._YSU_CMD_HAD_TIPS = true
     }
@@ -248,7 +268,7 @@ def _ysu_check_modern [typed_command: string] {
         let description = (if ($parts | length) > 1 { $parts.1 } else { "" })
 
         if (which $modern_cmd | length) > 0 {
-            let msg = _ysu_format $env.YSU_SUGGEST_PREFIX $"You should use (ansi red_bold)($modern_cmd)(ansi reset) instead of (ansi cyan_bold)($first_word)(ansi reset) — (ansi italic)($description)(ansi reset)"
+            let msg = _ysu_format $env.YSU_SUGGEST_PREFIX $"You should use ($env._YSU_C_HIGHLIGHT)($modern_cmd)($env._YSU_C_RESET) instead of ($env._YSU_C_COMMAND)($first_word)($env._YSU_C_RESET) — ($env._YSU_C_DIM)($description)($env._YSU_C_RESET)"
             print $msg
             $env._YSU_CMD_HAD_TIPS = true
             return
@@ -262,7 +282,7 @@ def _ysu_check_modern [typed_command: string] {
     if $env.YSU_INSTALL_HINT and $first_uninstalled != "" {
         let install_cmd = (_ysu_get_install_cmd $first_uninstalled)
         if $install_cmd != "" {
-            let msg = _ysu_format $env.YSU_SUGGEST_PREFIX $"Try (ansi red_bold)($first_uninstalled)(ansi reset) instead of (ansi cyan_bold)($first_word)(ansi reset) — (ansi italic)($first_uninstalled_desc)(ansi reset) \(install: (ansi yellow_bold)($install_cmd)(ansi reset)\)"
+            let msg = _ysu_format $env.YSU_SUGGEST_PREFIX $"Try ($env._YSU_C_HIGHLIGHT)($first_uninstalled)($env._YSU_C_RESET) instead of ($env._YSU_C_COMMAND)($first_word)($env._YSU_C_RESET) — ($env._YSU_C_DIM)($first_uninstalled_desc)($env._YSU_C_RESET) \(install: ($env._YSU_C_HINT)($install_cmd)($env._YSU_C_RESET)\)"
             print $msg
             $env._YSU_CMD_HAD_TIPS = true
         }
@@ -295,14 +315,14 @@ $env.config = ($env.config | upsert hooks ($env.config.hooks? | default {} | ups
 # ============================================================================
 
 def "ysu status" [] {
-    let check = $"(ansi green)✓(ansi reset)"
-    let cross = $"(ansi red)✗(ansi reset)"
+    let check = $"($env._YSU_C_OK)✓($env._YSU_C_RESET)"
+    let cross = $"($env._YSU_C_ERR)✗($env._YSU_C_RESET)"
 
     print ""
-    print $"(ansi attr_bold)📊 you-should-use status(ansi reset)"
+    print $"($env._YSU_C_BOLD)📊 you-should-use status($env._YSU_C_RESET)"
     print "─────────────────────────"
 
-    print $"(ansi attr_bold)Core Settings:(ansi reset)"
+    print $"($env._YSU_C_BOLD)Core Settings:($env._YSU_C_RESET)"
     print $"  Alias Reminders:    (if $env.YSU_REMINDER_ENABLED { $'($check) enabled' } else { $'($cross) disabled' })"
     print $"  Modern Suggestions: (if $env.YSU_SUGGEST_ENABLED { $'($check) enabled' } else { $'($cross) disabled' })"
     print $"  Prefix:             \"($env.YSU_PREFIX)\""
@@ -312,14 +332,14 @@ def "ysu status" [] {
     print $"  Package Manager:    ($env._YSU_PKG_MANAGER)"
     print ""
 
-    print $"(ansi attr_bold)LLM Settings:(ansi reset)"
+    print $"($env._YSU_C_BOLD)LLM Settings:($env._YSU_C_RESET)"
     print $"  Enabled:            (if $env.YSU_LLM_ENABLED { $'($check) enabled' } else { $'($cross) disabled' })"
     print $"  API URL:            ($env.YSU_LLM_API_URL)"
     print $"  Model:              ($env.YSU_LLM_MODEL)"
     print $"  Mode:               ($env.YSU_LLM_MODE)"
     print ""
 
-    print $"(ansi attr_bold)Statistics:(ansi reset)"
+    print $"($env._YSU_C_BOLD)Statistics:($env._YSU_C_RESET)"
     let alias_count = (scope aliases | length)
     let modern_count = ($YSU_MODERN_COMMANDS | columns | length)
     print $"  Aliases defined:    ($alias_count)"
@@ -328,27 +348,27 @@ def "ysu status" [] {
 }
 
 def "ysu doctor" [] {
-    let check = $"(ansi green)✓(ansi reset)"
-    let cross = $"(ansi red)✗(ansi reset)"
-    let warn = $"(ansi yellow_bold)!(ansi reset)"
+    let check = $"($env._YSU_C_OK)✓($env._YSU_C_RESET)"
+    let cross = $"($env._YSU_C_ERR)✗($env._YSU_C_RESET)"
+    let warn = $"($env._YSU_C_HINT)!($env._YSU_C_RESET)"
     mut issues = 0
 
     print ""
-    print $"(ansi attr_bold)🩺 you-should-use doctor(ansi reset)"
+    print $"($env._YSU_C_BOLD)🩺 you-should-use doctor($env._YSU_C_RESET)"
     print "─────────────────────────"
 
     # Shell
-    print $"(ansi attr_bold)Shell:(ansi reset)"
+    print $"($env._YSU_C_BOLD)Shell:($env._YSU_C_RESET)"
     print $"  ($check) Nushell (version)"
 
     # Plugin
     print ""
-    print $"(ansi attr_bold)Plugin:(ansi reset)"
+    print $"($env._YSU_C_BOLD)Plugin:($env._YSU_C_RESET)"
     print $"  ($check) Plugin loaded"
 
     # Config
     print ""
-    print $"(ansi attr_bold)Config:(ansi reset)"
+    print $"($env._YSU_C_BOLD)Config:($env._YSU_C_RESET)"
     if $env.YSU_PROBABILITY < 1 or $env.YSU_PROBABILITY > 100 {
         print $"  ($cross) YSU_PROBABILITY=($env.YSU_PROBABILITY) — must be 1-100"
         $issues = $issues + 1
@@ -358,7 +378,7 @@ def "ysu doctor" [] {
 
     # Package manager
     print ""
-    print $"(ansi attr_bold)Package Manager:(ansi reset)"
+    print $"($env._YSU_C_BOLD)Package Manager:($env._YSU_C_RESET)"
     if $env._YSU_PKG_MANAGER != "unknown" {
         print $"  ($check) Detected: ($env._YSU_PKG_MANAGER)"
     } else {
@@ -368,7 +388,7 @@ def "ysu doctor" [] {
 
     # LLM
     print ""
-    print $"(ansi attr_bold)LLM:(ansi reset)"
+    print $"($env._YSU_C_BOLD)LLM:($env._YSU_C_RESET)"
     if $env.YSU_LLM_ENABLED {
         print $"  ($check) LLM enabled"
         if (which curl | length) > 0 {
@@ -383,7 +403,7 @@ def "ysu doctor" [] {
 
     # Dependencies
     print ""
-    print $"(ansi attr_bold)Dependencies:(ansi reset)"
+    print $"($env._YSU_C_BOLD)Dependencies:($env._YSU_C_RESET)"
     for dep in ["curl" "jq"] {
         if (which $dep | length) > 0 {
             print $"  ($check) ($dep)"
@@ -399,9 +419,9 @@ def "ysu doctor" [] {
 
     print ""
     if $issues == 0 {
-        print $"(ansi green)(ansi attr_bold)No issues found!(ansi reset)"
+        print $"($env._YSU_C_OK)($env._YSU_C_BOLD)No issues found!($env._YSU_C_RESET)"
     } else {
-        print $"(ansi yellow_bold)($issues) issue\(s\) found(ansi reset)"
+        print $"($env._YSU_C_HINT)($issues) issue\(s\) found($env._YSU_C_RESET)"
     }
     print ""
 }
@@ -410,7 +430,7 @@ def "ysu discover" [min_count?: int] {
     let min_count = ($min_count | default 5)
 
     print ""
-    print $"(ansi attr_bold)🔍 Alias Discovery(ansi reset)"
+    print $"($env._YSU_C_BOLD)🔍 Alias Discovery($env._YSU_C_RESET)"
     print "─────────────────────────"
     print $"Analyzing history for commands used >= ($min_count) times..."
     print ""
@@ -453,8 +473,8 @@ def "ysu discover" [min_count?: int] {
 
         if $suggestion in $existing { continue }
 
-        print $"  (ansi cyan_bold)($prefix)(ansi reset)  \(used (ansi yellow_bold)($count)(ansi reset) times\)"
-        print $"    (ansi green)alias ($suggestion) = \"($prefix)\"(ansi reset)"
+        print $"  ($env._YSU_C_COMMAND)($prefix)($env._YSU_C_RESET)  \(used ($env._YSU_C_HINT)($count)($env._YSU_C_RESET) times\)"
+        print $"    ($env._YSU_C_OK)alias ($suggestion) = \"($prefix)\"($env._YSU_C_RESET)"
         print ""
         $found = $found + 1
         if $found >= 30 { break }
