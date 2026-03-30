@@ -56,7 +56,7 @@ run_bash() {
 @test "bash: modern commands mapping has correct count" {
   run_bash 'echo "${#YSU_MODERN_KEYS[@]}"'
   [ "$status" -eq 0 ]
-  [[ "$output" == "24" ]]
+  [[ "$output" == "25" ]]
 }
 
 @test "bash: install commands mapping has correct count" {
