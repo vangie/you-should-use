@@ -1532,7 +1532,7 @@ _ysu_config_wizard() {
       4) echo -n "  Probability (1-100): "; read -r YSU_PROBABILITY ;;
       5) echo -n "  Cooldown (seconds): "; read -r YSU_COOLDOWN ;;
       6) _ysu_config_llm ;;
-      7) _ysu_config_theme ;;
+      7) _ysu_config_theme || { echo "  Settings applied to current session."; return; } ;;
       s|S) _ysu_config_save "$config_dir" "$config_file" ;;
       q|Q) echo "  Settings applied to current session."; return ;;
     esac
@@ -1559,7 +1559,7 @@ _ysu_config_theme() {
     echo "  ${_YSU_C_DIM}💡 Found alias:${_YSU_C_RESET} ${_YSU_C_COMMAND}git commit${_YSU_C_RESET} ${_YSU_C_ARROW}→${_YSU_C_RESET} ${_YSU_C_HIGHLIGHT}gc${_YSU_C_RESET}"
     echo "  ${_YSU_C_DIM}💡 Modern:${_YSU_C_RESET} ${_YSU_C_COMMAND}cat${_YSU_C_RESET} ${_YSU_C_ARROW}→${_YSU_C_RESET} ${_YSU_C_HIGHLIGHT}bat${_YSU_C_RESET} ${_YSU_C_HINT}(Syntax-highlighted cat)${_YSU_C_RESET}"
     echo ""
-    echo -n "  ${_YSU_C_DIM}↑↓/jk${_YSU_C_RESET} mode  ${_YSU_C_DIM}←→/hl${_YSU_C_RESET} theme  ${_YSU_C_DIM}q${_YSU_C_RESET} back"
+    echo -n "  ${_YSU_C_DIM}↑↓/jk${_YSU_C_RESET} mode  ${_YSU_C_DIM}←→/hl${_YSU_C_RESET} theme  ${_YSU_C_DIM}b${_YSU_C_RESET} back  ${_YSU_C_DIM}q${_YSU_C_RESET} quit"
     read -sk 1 _key
     if [[ "$_key" == $'\e' ]]; then
       read -sk 2 _key
@@ -1601,7 +1601,8 @@ _ysu_config_theme() {
         fi
         _ysu_init_colors
         ;;
-      q|Q) echo ""; return ;;
+      b|B) echo ""; return 0 ;;
+      q|Q) echo ""; return 1 ;;
     esac
   done
 }
