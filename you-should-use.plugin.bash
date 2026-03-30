@@ -165,7 +165,7 @@ fi
 
 if [[ -z "${YSU_MODERN_KEYS+x}" ]]; then
   YSU_MODERN_KEYS=(
-    cat ls find grep du top ps diff sed curl ping dig man cd df xxd make wget time history cloc tree traceroute tmux
+    cat ls find grep du top ps diff sed curl ping dig man cd df xxd make wget time history cloc tree traceroute tmux vim
   )
   YSU_MODERN_VALS=(
     "bat:Syntax highlighting, line numbers, git integration|glow:Terminal Markdown renderer"
@@ -192,6 +192,7 @@ if [[ -z "${YSU_MODERN_KEYS+x}" ]]; then
     "broot:Interactive directory tree with fuzzy search"
     "mtr:Combined traceroute and ping with live display"
     "zellij:Modern terminal multiplexer with intuitive UI"
+    "nvim:Neovim - modernized Vim fork"
   )
 fi
 

@@ -161,7 +161,7 @@ end
 
 if not set -q YSU_MODERN_KEYS
     set -g YSU_MODERN_KEYS \
-        cat ls find grep du top ps diff sed curl ping dig man cd df xxd make wget time history cloc tree traceroute tmux
+        cat ls find grep du top ps diff sed curl ping dig man cd df xxd make wget time history cloc tree traceroute tmux vim
     set -g YSU_MODERN_VALS \
         "bat:Syntax highlighting, line numbers, git integration|glow:Terminal Markdown renderer" \
         "eza:Modern file listing with icons, git status, tree view|lsd:LSDeluxe - colorful ls with icons" \
@@ -186,7 +186,8 @@ if not set -q YSU_MODERN_KEYS
         "tokei:Fast code line counter with language breakdown" \
         "broot:Interactive directory tree with fuzzy search" \
         "mtr:Combined traceroute and ping with live display" \
-        "zellij:Modern terminal multiplexer with intuitive UI"
+        "zellij:Modern terminal multiplexer with intuitive UI" \
+        "nvim:Neovim - modernized Vim fork"
 end
 
 # Context-aware suggestions: suggest tools based on command + file extension

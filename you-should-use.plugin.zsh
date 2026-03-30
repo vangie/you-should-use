@@ -195,6 +195,7 @@ if [[ ${#YSU_MODERN_COMMANDS} -eq 0 ]]; then
     tree   "broot:Interactive directory tree with fuzzy search"
     traceroute "mtr:Combined traceroute and ping with live display"
     tmux   "zellij:Modern terminal multiplexer with intuitive UI"
+    vim    "nvim:Neovim - modernized Vim fork"
   )
 fi
 
