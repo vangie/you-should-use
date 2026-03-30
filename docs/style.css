@@ -359,12 +359,10 @@ table code {
   overflow-x: auto;
   font-family: 'SF Mono', Menlo, Monaco, Consolas, monospace;
   font-size: 0.9rem;
-  color: var(--green);
 }
 
 /* highlight.js overrides to match Catppuccin theme */
-.code-block pre code.hljs,
-.tab-content pre code.hljs {
+pre code.hljs {
   background: transparent;
   padding: 0;
 }
@@ -427,12 +425,7 @@ table code {
 .tab-content pre {
   font-family: 'SF Mono', Menlo, Monaco, Consolas, monospace;
   font-size: 0.9rem;
-  color: var(--text);
   line-height: 1.6;
-}
-
-.tab-content code {
-  color: var(--text);
 }
 
 /* Commands */
