@@ -1535,31 +1535,24 @@ end
 function _ysu_config_theme
     set -l dark_themes tokyo-night dracula monokai catppuccin-mocha
     set -l light_themes solarized catppuccin-latte github
-    set -l menu_lines 16
-    set -l redraw 0
 
+    printf '\e7'
     while true
-        set -l active_theme
-        test "$YSU_THEME" = light; and set active_theme "$YSU_LIGHT_THEME"; or set active_theme "$YSU_DARK_THEME"
-        # In-place redraw: move cursor up and clear previous menu
-        if test $redraw -eq 1
-            printf '\e[%dA\e[J' $menu_lines
-        end
-        set redraw 1
+        set -l cur_theme
+        test "$YSU_THEME" = light; and set cur_theme "$YSU_LIGHT_THEME"; or set cur_theme "$YSU_DARK_THEME"
+        printf '\e8\e[J'
         echo ""
         echo -e "$_YSU_C_BOLD""Theme Settings$_YSU_C_RESET"
         echo "━━━━━━━━━━━━━━"
-        echo -e "  Mode:         $_YSU_C_BOLD$YSU_THEME$_YSU_C_RESET (active: $_YSU_C_BOLD$active_theme$_YSU_C_RESET)"
-        echo -e "  Dark theme:   $_YSU_C_BOLD$YSU_DARK_THEME$_YSU_C_RESET"
-        echo -e "  Light theme:  $_YSU_C_BOLD$YSU_LIGHT_THEME$_YSU_C_RESET"
+        echo -e "  Mode:   $_YSU_C_BOLD$YSU_THEME$_YSU_C_RESET"
+        echo -e "  Theme:  $_YSU_C_BOLD$cur_theme$_YSU_C_RESET"
         echo ""
         echo "  Preview:"
         echo -e "  $_YSU_C_DIM""💡 Found alias:$_YSU_C_RESET $_YSU_C_COMMAND""git commit$_YSU_C_RESET $_YSU_C_ARROW""→$_YSU_C_RESET $_YSU_C_HIGHLIGHT""gc$_YSU_C_RESET"
         echo -e "  $_YSU_C_DIM""💡 Modern:$_YSU_C_RESET $_YSU_C_COMMAND""cat$_YSU_C_RESET $_YSU_C_ARROW""→$_YSU_C_RESET $_YSU_C_HIGHLIGHT""bat$_YSU_C_RESET $_YSU_C_HINT""(Syntax-highlighted cat)$_YSU_C_RESET"
         echo ""
         echo "  m) Toggle mode (dark ↔ light)"
-        echo "  d) Cycle dark theme"
-        echo "  l) Cycle light theme"
+        echo "  t) Cycle theme"
         echo "  q) Back"
         echo ""
         read -P "  Select: " choice
@@ -1568,22 +1561,23 @@ function _ysu_config_theme
             case m
                 test "$YSU_THEME" = dark; and set -g YSU_THEME light; or set -g YSU_THEME dark
                 _ysu_init_colors
-            case d
-                set -l idx 1
-                for i in (seq (count $dark_themes))
-                    test "$dark_themes[$i]" = "$YSU_DARK_THEME"; and set idx $i; and break
+            case t
+                if test "$YSU_THEME" = dark
+                    set -l idx 1
+                    for i in (seq (count $dark_themes))
+                        test "$dark_themes[$i]" = "$YSU_DARK_THEME"; and set idx $i; and break
+                    end
+                    set idx (math "$idx % "(count $dark_themes)" + 1")
+                    set -g YSU_DARK_THEME $dark_themes[$idx]
+                else
+                    set -l idx 1
+                    for i in (seq (count $light_themes))
+                        test "$light_themes[$i]" = "$YSU_LIGHT_THEME"; and set idx $i; and break
+                    end
+                    set idx (math "$idx % "(count $light_themes)" + 1")
+                    set -g YSU_LIGHT_THEME $light_themes[$idx]
                 end
-                set idx (math "$idx % "(count $dark_themes)" + 1")
-                set -g YSU_DARK_THEME $dark_themes[$idx]
-                test "$YSU_THEME" = dark; and _ysu_init_colors
-            case l
-                set -l idx 1
-                for i in (seq (count $light_themes))
-                    test "$light_themes[$i]" = "$YSU_LIGHT_THEME"; and set idx $i; and break
-                end
-                set idx (math "$idx % "(count $light_themes)" + 1")
-                set -g YSU_LIGHT_THEME $light_themes[$idx]
-                test "$YSU_THEME" = light; and _ysu_init_colors
+                _ysu_init_colors
             case q Q
                 return
         end
