@@ -3,6 +3,10 @@
 # https://github.com/vangie/you-should-use
 # MIT License
 
+# Guard against double-sourcing (add-zsh-hook would register duplicate hooks)
+[[ -n "$_YSU_LOADED" ]] && return
+_YSU_LOADED=1
+
 # Source user config if it exists (before defaults so user values take priority)
 local _ysu_config="${XDG_CONFIG_HOME:-$HOME/.config}/ysu/config.zsh"
 [[ -f "$_ysu_config" ]] && source "$_ysu_config"
@@ -327,6 +331,11 @@ _ysu_format() {
 _ysu_buffer() {
   local msg
   msg=$(_ysu_format "$1" "$2")
+  # Deduplicate: skip if identical message already buffered
+  local existing
+  for existing in "${_YSU_MESSAGES[@]}"; do
+    [[ "$existing" == "$msg" ]] && return
+  done
   _YSU_MESSAGES+=("$msg")
 }
 

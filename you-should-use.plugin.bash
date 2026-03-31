@@ -332,6 +332,11 @@ _ysu_format() {
 _ysu_buffer() {
   local msg
   msg=$(_ysu_format "$1" "$2")
+  # Deduplicate: skip if identical message already buffered
+  local existing
+  for existing in "${_YSU_MESSAGES[@]}"; do
+    [[ "$existing" == "$msg" ]] && return
+  done
   _YSU_MESSAGES+=("$msg")
 }
 
