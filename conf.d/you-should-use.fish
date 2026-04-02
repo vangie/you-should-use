@@ -21,6 +21,7 @@ set -q YSU_REMINDER_PREFIX; or set -g YSU_REMINDER_PREFIX ""
 set -q YSU_SUGGEST_PREFIX; or set -g YSU_SUGGEST_PREFIX ""
 set -q YSU_LLM_PREFIX; or set -g YSU_LLM_PREFIX "🤖"
 set -q YSU_PROBABILITY; or set -g YSU_PROBABILITY 100
+set -q YSU_REMINDER_HALFLIFE; or set -g YSU_REMINDER_HALFLIFE 0
 set -q YSU_COOLDOWN; or set -g YSU_COOLDOWN 0
 set -q YSU_IGNORE_ALIASES; or set -g YSU_IGNORE_ALIASES
 set -q YSU_IGNORE_COMMANDS; or set -g YSU_IGNORE_COMMANDS
@@ -361,6 +362,35 @@ function _ysu_is_ignored_command
     return 1
 end
 
+function _ysu_reminder_roll
+    set -l key $argv[1]
+    # Fast path: no half-life configured — always show
+    test "$YSU_REMINDER_HALFLIFE" -le 0; and return 0
+
+    set -l cache_dir "$YSU_LLM_CACHE_DIR"
+    test -n "$cache_dir"; or set cache_dir "$HOME/.cache/ysu"
+    set -l key_hash (_ysu_llm_cache_key "$key")
+    set -l seen_file "$cache_dir/.seen_$key_hash"
+
+    if test -f "$seen_file"
+        set -l last_shown (cat "$seen_file" 2>/dev/null)
+        set -l now (date +%s)
+        set -l elapsed (math "$now - $last_shown")
+
+        # Linear ramp: 0% at t=0, 100% at t=halflife
+        set -l prob (math "min(100, $elapsed * 100 / $YSU_REMINDER_HALFLIFE)")
+        set -l rand (random 1 100)
+        if test "$rand" -gt "$prob"
+            return 1
+        end
+    end
+
+    # Will show — update timestamp
+    mkdir -p "$cache_dir"
+    date +%s > "$seen_file"
+    return 0
+end
+
 # ============================================================================
 # Feature 1: Alias Reminders (Fish abbreviations and functions)
 # ============================================================================
@@ -423,6 +453,7 @@ function _ysu_check_aliases
     end
 
     if test -n "$found_alias"
+        _ysu_reminder_roll "$first_word"; or return
         _ysu_print "$YSU_REMINDER_PREFIX" \
             "You should use $_YSU_C_HIGHLIGHT$found_alias$_YSU_C_RESET instead of $_YSU_C_COMMAND$found_value$_YSU_C_RESET"
         _ysu_record_tip
@@ -461,6 +492,7 @@ function _ysu_check_modern
                         set -l _ctx_cmd (string split -m1 ':' -- $_ctx_entry)[1]
                         set -l _ctx_desc (string split -m1 ':' -- $_ctx_entry)[2]
                         if command -q $_ctx_cmd
+                            _ysu_reminder_roll "$first_word"; or return
                             _ysu_print "$YSU_SUGGEST_PREFIX" \
                                 "You should use $_YSU_C_HIGHLIGHT$_ctx_cmd$_YSU_C_RESET instead of $_YSU_C_COMMAND$first_word$_YSU_C_RESET — $_YSU_C_DIM$_ctx_desc$_YSU_C_RESET"
                             _ysu_record_tip
@@ -474,6 +506,7 @@ function _ysu_check_modern
                                 end
                             end
                             if test -n "$_ctx_install"
+                                _ysu_reminder_roll "$first_word"; or return
                                 _ysu_print "$YSU_SUGGEST_PREFIX" \
                                     "Try $_YSU_C_HIGHLIGHT$_ctx_cmd$_YSU_C_RESET instead of $_YSU_C_COMMAND$first_word$_YSU_C_RESET — $_YSU_C_DIM$_ctx_desc$_YSU_C_RESET (install: $_YSU_C_HINT$_ctx_install$_YSU_C_RESET)"
                                 _ysu_record_tip
@@ -531,6 +564,7 @@ function _ysu_check_modern
             end
             test "$_skip" = true; and return
 
+            _ysu_reminder_roll "$first_word"; or return
             _ysu_print "$YSU_SUGGEST_PREFIX" \
                 "You should use $_YSU_C_HIGHLIGHT$modern_cmd$_YSU_C_RESET instead of $_YSU_C_COMMAND$first_word$_YSU_C_RESET — $_YSU_C_DIM$description$_YSU_C_RESET"
             _ysu_record_tip
@@ -550,6 +584,7 @@ function _ysu_check_modern
 
     # No installed alternative found — show install hint for the first one
     if test "$YSU_INSTALL_HINT" = true; and test -n "$_first_uninstalled"; and test -n "$_first_uninstalled_install"
+        _ysu_reminder_roll "$first_word"; or return
         _ysu_print "$YSU_SUGGEST_PREFIX" \
             "Try $_YSU_C_HIGHLIGHT$_first_uninstalled$_YSU_C_RESET instead of $_YSU_C_COMMAND$first_word$_YSU_C_RESET — $_YSU_C_DIM$_first_uninstalled_desc$_YSU_C_RESET (install: $_YSU_C_HINT$_first_uninstalled_install$_YSU_C_RESET)"
         _ysu_record_tip
@@ -572,6 +607,7 @@ function _ysu_check_sudo_alias
             _ysu_is_ignored_alias $abbr_name; and continue
             # Match abbreviations whose value is "sudo" or "sudo "
             if test "$abbr_value" = sudo -o "$abbr_value" = "sudo "
+                _ysu_reminder_roll "$inner_command"; or return
                 _ysu_print "$YSU_REMINDER_PREFIX" \
                     "You should use $_YSU_C_HIGHLIGHT$abbr_name $inner_command$_YSU_C_RESET instead of $_YSU_C_COMMAND""sudo $inner_command$_YSU_C_RESET"
                 _ysu_record_tip
@@ -588,6 +624,7 @@ function _ysu_check_sudo_alias
         if test (count $wrapped) -ge 2
             _ysu_is_ignored_alias $func_name; and continue
             if test "$wrapped[2]" = sudo
+                _ysu_reminder_roll "$inner_command"; or return
                 _ysu_print "$YSU_REMINDER_PREFIX" \
                     "You should use $_YSU_C_HIGHLIGHT$func_name $inner_command$_YSU_C_RESET instead of $_YSU_C_COMMAND""sudo $inner_command$_YSU_C_RESET"
                 _ysu_record_tip
@@ -1146,6 +1183,9 @@ function _ysu_status
     echo -e "  Modern Suggestions: "(test "$YSU_SUGGEST_ENABLED" = true; and echo -e $check' enabled'; or echo -e $cross' disabled')
     echo -e "  Prefix:             \"$YSU_PREFIX\""
     echo -e "  Probability:        $YSU_PROBABILITY%"
+    if test "$YSU_REMINDER_HALFLIFE" -gt 0
+        echo -e "  Reminder Halflife:  "$YSU_REMINDER_HALFLIFE"s"
+    end
     echo -e "  Cooldown:           "$YSU_COOLDOWN"s"
     echo -e "  Install Hints:      "(test "$YSU_INSTALL_HINT" = true; and echo -e $check' enabled'; or echo -e $cross' disabled')
     echo -e "  Package Manager:    $_YSU_PKG_MANAGER"(test "$_YSU_IS_WSL" = true; and echo " (WSL)"; or echo "")
@@ -1423,6 +1463,10 @@ function _ysu_doctor
         echo -e "  $cross YSU_PROBABILITY=$YSU_PROBABILITY — must be 1-100"
         set issues (math $issues + 1)
     end
+    if test "$YSU_REMINDER_HALFLIFE" -lt 0 2>/dev/null
+        echo -e "  $cross YSU_REMINDER_HALFLIFE=$YSU_REMINDER_HALFLIFE — must be >= 0"
+        set issues (math $issues + 1)
+    end
 
     # 4. Package manager
     echo ""
@@ -1512,6 +1556,7 @@ function _ysu_config_wizard
     set -lx YSU_SUGGEST_ENABLED "$YSU_SUGGEST_ENABLED"
     set -lx YSU_LLM_ENABLED "$YSU_LLM_ENABLED"
     set -lx YSU_PROBABILITY "$YSU_PROBABILITY"
+    set -lx YSU_REMINDER_HALFLIFE "$YSU_REMINDER_HALFLIFE"
     set -lx YSU_COOLDOWN "$YSU_COOLDOWN"
     set -lx YSU_LLM_API_URL "$YSU_LLM_API_URL"
     set -lx YSU_LLM_API_KEY "$YSU_LLM_API_KEY"

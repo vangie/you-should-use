@@ -21,6 +21,7 @@ $env.YSU_REMINDER_PREFIX = ($env.YSU_REMINDER_PREFIX? | default "")
 $env.YSU_SUGGEST_PREFIX = ($env.YSU_SUGGEST_PREFIX? | default "")
 $env.YSU_LLM_PREFIX = ($env.YSU_LLM_PREFIX? | default "🤖")
 $env.YSU_PROBABILITY = ($env.YSU_PROBABILITY? | default 100)
+$env.YSU_REMINDER_HALFLIFE = ($env.YSU_REMINDER_HALFLIFE? | default 0)
 $env.YSU_COOLDOWN = ($env.YSU_COOLDOWN? | default 0)
 $env.YSU_IGNORE_ALIASES = ($env.YSU_IGNORE_ALIASES? | default "")
 $env.YSU_IGNORE_COMMANDS = ($env.YSU_IGNORE_COMMANDS? | default "")
@@ -154,6 +155,37 @@ def _ysu_is_ignored_alias [name: string] {
     $name in $ignored
 }
 
+def _ysu_reminder_roll [key: string] {
+    # Fast path: no half-life configured — always show
+    if $env.YSU_REMINDER_HALFLIFE <= 0 {
+        return true
+    }
+
+    let cache_dir = $env.YSU_LLM_CACHE_DIR
+    # Simple hash: use string length + first/last chars as key
+    let key_hash = ($key | hash md5)
+    let seen_file = $"($cache_dir)/.seen_($key_hash)"
+
+    if ($seen_file | path exists) {
+        let last_shown = (open $seen_file | str trim | into int)
+        let now = (date now | into int) / 1_000_000_000
+        let elapsed = $now - $last_shown
+
+        # Linear ramp: 0% at t=0, 100% at t=halflife
+        let prob = [100, ($elapsed * 100 / $env.YSU_REMINDER_HALFLIFE)] | math min
+        let rand = (random int 1..100)
+        if $rand > $prob {
+            return false
+        }
+    }
+
+    # Will show — update timestamp
+    mkdir ($cache_dir)
+    let now = (date now | into int) / 1_000_000_000 | into string
+    $now | save -f $seen_file
+    true
+}
+
 def _ysu_should_show [] {
     # Probability check
     if $env.YSU_PROBABILITY < 100 {
@@ -227,6 +259,8 @@ def _ysu_check_aliases [typed_command: string] {
     }
 
     if $best_alias != "" {
+        let first_word = ($cmd | split row " " | first)
+        if not (_ysu_reminder_roll $first_word) { return }
         let msg = _ysu_format $env.YSU_REMINDER_PREFIX $"Use alias ($env._YSU_C_HIGHLIGHT)($best_alias)($env._YSU_C_RESET) instead of ($env._YSU_C_COMMAND)($best_match)($env._YSU_C_RESET)"
         print $msg
         $env._YSU_CMD_HAD_TIPS = true
@@ -269,6 +303,7 @@ def _ysu_check_modern [typed_command: string] {
         let description = (if ($parts | length) > 1 { $parts.1 } else { "" })
 
         if (which $modern_cmd | length) > 0 {
+            if not (_ysu_reminder_roll $first_word) { return }
             let msg = _ysu_format $env.YSU_SUGGEST_PREFIX $"You should use ($env._YSU_C_HIGHLIGHT)($modern_cmd)($env._YSU_C_RESET) instead of ($env._YSU_C_COMMAND)($first_word)($env._YSU_C_RESET) — ($env._YSU_C_DIM)($description)($env._YSU_C_RESET)"
             print $msg
             $env._YSU_CMD_HAD_TIPS = true
@@ -283,6 +318,7 @@ def _ysu_check_modern [typed_command: string] {
     if $env.YSU_INSTALL_HINT and $first_uninstalled != "" {
         let install_cmd = (_ysu_get_install_cmd $first_uninstalled)
         if $install_cmd != "" {
+            if not (_ysu_reminder_roll $first_word) { return }
             let msg = _ysu_format $env.YSU_SUGGEST_PREFIX $"Try ($env._YSU_C_HIGHLIGHT)($first_uninstalled)($env._YSU_C_RESET) instead of ($env._YSU_C_COMMAND)($first_word)($env._YSU_C_RESET) — ($env._YSU_C_DIM)($first_uninstalled_desc)($env._YSU_C_RESET) \(install: ($env._YSU_C_HINT)($install_cmd)($env._YSU_C_RESET)\)"
             print $msg
             $env._YSU_CMD_HAD_TIPS = true
@@ -334,6 +370,9 @@ def "ysu status" [] {
     print $"  Modern Suggestions: (if $env.YSU_SUGGEST_ENABLED { $'($check) enabled' } else { $'($cross) disabled' })"
     print $"  Prefix:             \"($env.YSU_PREFIX)\""
     print $"  Probability:        ($env.YSU_PROBABILITY)%"
+    if $env.YSU_REMINDER_HALFLIFE > 0 {
+        print $"  Reminder Halflife:  ($env.YSU_REMINDER_HALFLIFE)s"
+    }
     print $"  Cooldown:           ($env.YSU_COOLDOWN)s"
     print $"  Install Hints:      (if $env.YSU_INSTALL_HINT { $'($check) enabled' } else { $'($cross) disabled' })"
     print $"  Package Manager:    ($env._YSU_PKG_MANAGER)"
@@ -381,6 +420,10 @@ def "ysu doctor" [] {
         $issues = $issues + 1
     } else {
         print $"  ($check) YSU_PROBABILITY=($env.YSU_PROBABILITY)"
+    }
+    if $env.YSU_REMINDER_HALFLIFE < 0 {
+        print $"  ($cross) YSU_REMINDER_HALFLIFE=($env.YSU_REMINDER_HALFLIFE) — must be >= 0"
+        $issues = $issues + 1
     }
 
     # Package manager

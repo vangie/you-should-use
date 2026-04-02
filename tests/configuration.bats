@@ -154,3 +154,49 @@ run_zsh() {
     skip "htop not installed"
   fi
 }
+
+# ---- Reminder Half-life ----
+
+@test "halflife=0 always shows tips (default)" {
+  run_zsh '
+    YSU_REMINDER_HALFLIFE=0
+    alias g="git"
+    _ysu_check_aliases "git status"
+    _ysu_get_messages
+  '
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"g"* ]]
+}
+
+@test "halflife suppresses immediately repeated tip" {
+  run_zsh '
+    YSU_REMINDER_HALFLIFE=3600
+    YSU_LLM_CACHE_DIR="$(mktemp -d)"
+    alias g="git"
+    _ysu_check_aliases "git status"
+    _ysu_flush
+    # Second call should be suppressed (0 seconds elapsed)
+    _ysu_check_aliases "git status"
+    echo "count=$(_ysu_message_count)"
+    rm -rf "$YSU_LLM_CACHE_DIR"
+  '
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"count=0"* ]]
+}
+
+@test "halflife does not affect different commands" {
+  run_zsh '
+    YSU_REMINDER_HALFLIFE=3600
+    YSU_LLM_CACHE_DIR="$(mktemp -d)"
+    alias g="git"
+    alias d="docker"
+    _ysu_check_aliases "git status"
+    _ysu_flush
+    # Different command should still show
+    _ysu_check_aliases "docker ps"
+    echo "count=$(_ysu_message_count)"
+    rm -rf "$YSU_LLM_CACHE_DIR"
+  '
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"count=1"* ]]
+}

@@ -32,6 +32,7 @@ _ysu_config_dir="${XDG_CONFIG_HOME:-$HOME/.config}/ysu"
 
 # Frequency control
 : "${YSU_PROBABILITY:=100}"
+: "${YSU_REMINDER_HALFLIFE:=0}"
 : "${YSU_COOLDOWN:=0}"
 
 # Exclusions
@@ -397,6 +398,38 @@ _ysu_is_ignored_command() {
   return 1
 }
 
+_ysu_reminder_roll() {
+  local key="$1"
+  # Fast path: no half-life configured — always show
+  [[ $YSU_REMINDER_HALFLIFE -le 0 ]] && return 0
+
+  local cache_dir="${YSU_LLM_CACHE_DIR:-$HOME/.cache/ysu}"
+  local key_hash
+  key_hash=$(_ysu_llm_cache_key "$key")
+  local seen_file="${cache_dir}/.seen_${key_hash}"
+
+  if [[ -f "$seen_file" ]]; then
+    local last_shown now elapsed prob rand
+    last_shown=$(< "$seen_file")
+    now=$(_ysu_now)
+    elapsed=$(( now - last_shown ))
+
+    # Linear ramp: 0% at t=0, 100% at t=halflife
+    prob=$(( elapsed * 100 / YSU_REMINDER_HALFLIFE ))
+    [[ $prob -gt 100 ]] && prob=100
+
+    rand=$(( RANDOM % 100 + 1 ))
+    if [[ $rand -gt $prob ]]; then
+      return 1
+    fi
+  fi
+
+  # Will show — update timestamp
+  mkdir -p "$cache_dir"
+  _ysu_now > "$seen_file"
+  return 0
+}
+
 # Look up a value in parallel arrays by key
 # Usage: _ysu_lookup_parallel KEY KEYS_ARRAY_NAME VALS_ARRAY_NAME
 # Prints the value if found, empty string otherwise
@@ -457,6 +490,7 @@ _ysu_check_aliases() {
   done < <(alias 2>/dev/null)
 
   if [[ -n "$found_alias" ]]; then
+    _ysu_reminder_roll "$first_word" || return
     _ysu_buffer "$YSU_REMINDER_PREFIX" \
       "You should use ${_YSU_C_HIGHLIGHT}${found_alias}${_YSU_C_RESET} instead of ${_YSU_C_COMMAND}${found_value}${_YSU_C_RESET}"
     _ysu_record_tip
@@ -495,6 +529,7 @@ _ysu_check_modern() {
       _ctx_cmd="${_ctx_entry%%:*}"
       _ctx_desc="${_ctx_entry#*:}"
       if command -v "$_ctx_cmd" &>/dev/null; then
+        _ysu_reminder_roll "$first_word" || return
         _ysu_buffer "$YSU_SUGGEST_PREFIX" \
           "You should use ${_YSU_C_HIGHLIGHT}${_ctx_cmd}${_YSU_C_RESET} instead of ${_YSU_C_COMMAND}${first_word}${_YSU_C_RESET} — ${_YSU_C_DIM}${_ctx_desc}${_YSU_C_RESET}"
         _ysu_record_tip
@@ -503,6 +538,7 @@ _ysu_check_modern() {
         local _ctx_install
         _ctx_install=$(_ysu_lookup_parallel "$_ctx_cmd" YSU_INSTALL_KEYS YSU_INSTALL_VALS) || true
         if [[ -n "$_ctx_install" ]]; then
+          _ysu_reminder_roll "$first_word" || return
           _ysu_buffer "$YSU_SUGGEST_PREFIX" \
             "Try ${_YSU_C_HIGHLIGHT}${_ctx_cmd}${_YSU_C_RESET} instead of ${_YSU_C_COMMAND}${first_word}${_YSU_C_RESET} — ${_YSU_C_DIM}${_ctx_desc}${_YSU_C_RESET} (install: ${_YSU_C_HINT}${_ctx_install}${_YSU_C_RESET})"
           _ysu_record_tip
@@ -534,6 +570,7 @@ _ysu_check_modern() {
       alias_val=$(alias "$first_word" 2>/dev/null | sed "s/^alias ${first_word}='\\(.*\\)'$/\\1/")
       [[ "${alias_val%% *}" == "$modern_cmd" ]] && return
 
+      _ysu_reminder_roll "$first_word" || return
       _ysu_buffer "$YSU_SUGGEST_PREFIX" \
         "You should use ${_YSU_C_HIGHLIGHT}${modern_cmd}${_YSU_C_RESET} instead of ${_YSU_C_COMMAND}${first_word}${_YSU_C_RESET} — ${_YSU_C_DIM}${description}${_YSU_C_RESET}"
       _ysu_record_tip
@@ -547,6 +584,7 @@ _ysu_check_modern() {
 
   # No installed alternative found — show install hint for the first one
   if [[ "$YSU_INSTALL_HINT" == "true" && -n "$_first_uninstalled" && -n "$_first_uninstalled_install" ]]; then
+    _ysu_reminder_roll "$first_word" || return
     _ysu_buffer "$YSU_SUGGEST_PREFIX" \
       "Try ${_YSU_C_HIGHLIGHT}${_first_uninstalled}${_YSU_C_RESET} instead of ${_YSU_C_COMMAND}${first_word}${_YSU_C_RESET} — ${_YSU_C_DIM}${_first_uninstalled_desc}${_YSU_C_RESET} (install: ${_YSU_C_HINT}${_first_uninstalled_install}${_YSU_C_RESET})"
     _ysu_record_tip
@@ -567,6 +605,7 @@ _ysu_check_sudo_alias() {
     _ysu_is_ignored_alias "$alias_name" && continue
     [[ "$alias_name" == "sudo" ]] && continue
     if [[ "$alias_value" == "sudo" || "$alias_value" == "sudo " ]]; then
+      _ysu_reminder_roll "$inner_command" || return
       _ysu_buffer "$YSU_REMINDER_PREFIX" \
         "You should use ${_YSU_C_HIGHLIGHT}${alias_name} ${inner_command}${_YSU_C_RESET} instead of ${_YSU_C_COMMAND}sudo ${inner_command}${_YSU_C_RESET}"
       _ysu_record_tip
@@ -1088,6 +1127,9 @@ _ysu_status() {
   echo -e "  Modern Suggestions: $([[ "$YSU_SUGGEST_ENABLED" == "true" ]] && echo "${check} enabled" || echo "${cross} disabled")"
   echo -e "  Prefix:             \"${YSU_PREFIX}\""
   echo -e "  Probability:        ${YSU_PROBABILITY}%"
+  if [[ $YSU_REMINDER_HALFLIFE -gt 0 ]]; then
+    echo -e "  Reminder Halflife:  ${YSU_REMINDER_HALFLIFE}s"
+  fi
   echo -e "  Cooldown:           ${YSU_COOLDOWN}s"
   echo -e "  Install Hints:      $([[ "$YSU_INSTALL_HINT" == "true" ]] && echo "${check} enabled" || echo "${cross} disabled")"
   echo -e "  Package Manager:    ${_YSU_PKG_MANAGER}$([[ "$_YSU_IS_WSL" == "true" ]] && echo " (WSL)")"
@@ -1346,6 +1388,10 @@ _ysu_doctor() {
     echo -e "  ${cross} YSU_PROBABILITY=${YSU_PROBABILITY} — must be 1-100"
     ((issues++))
   fi
+  if (( YSU_REMINDER_HALFLIFE < 0 )); then
+    echo -e "  ${cross} YSU_REMINDER_HALFLIFE=${YSU_REMINDER_HALFLIFE} — must be >= 0"
+    ((issues++))
+  fi
 
   # 4. Package manager
   echo ""
@@ -1443,7 +1489,7 @@ _ysu_config_wizard() {
   local _script="$_script_dir/bin/ysu-config.sh"
   local _config_file="${XDG_CONFIG_HOME:-$HOME/.config}/ysu/config.bash"
   export YSU_REMINDER_ENABLED YSU_SUGGEST_ENABLED YSU_LLM_ENABLED
-  export YSU_PROBABILITY YSU_COOLDOWN
+  export YSU_PROBABILITY YSU_REMINDER_HALFLIFE YSU_COOLDOWN
   export YSU_LLM_API_URL YSU_LLM_API_KEY YSU_LLM_MODEL YSU_LLM_MODE
   export YSU_INSTALL_HINT YSU_MESSAGE_FORMAT
   export YSU_THEME YSU_DARK_THEME YSU_LIGHT_THEME
