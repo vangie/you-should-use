@@ -19,6 +19,7 @@ _ysu_config_dir="${XDG_CONFIG_HOME:-$HOME/.config}/ysu"
 # ============================================================================
 
 # Feature toggles
+: "${YSU_DISABLED:=false}"
 : "${YSU_REMINDER_ENABLED:=true}"
 : "${YSU_SUGGEST_ENABLED:=true}"
 : "${YSU_LLM_ENABLED:=false}"
@@ -858,6 +859,9 @@ _ysu_maybe_show_promo() {
 # ============================================================================
 
 _ysu_preexec() {
+  # Bail out if plugin is disabled
+  [[ "$YSU_DISABLED" == "true" ]] && return
+
   # Only fire once per user command (guard against subshells/pipelines)
   [[ "$_YSU_PREEXEC_READY" != "true" ]] && return
   _YSU_PREEXEC_READY=false
@@ -912,6 +916,9 @@ _ysu_precmd() {
 
   # Re-arm the preexec guard
   _YSU_PREEXEC_READY=true
+
+  # Bail out if plugin is disabled
+  [[ "$YSU_DISABLED" == "true" ]] && return
 
   # Flush any remaining buffered messages
   if [[ ${#_YSU_MESSAGES[@]} -gt 0 ]]; then
@@ -1074,6 +1081,9 @@ _ysu_status() {
   echo "─────────────────────────"
 
   echo -e "${bold}Core Settings:${reset}"
+  if [[ "$YSU_DISABLED" == "true" ]]; then
+    echo -e "  Plugin:             ${cross} disabled (YSU_DISABLED=true)"
+  fi
   echo -e "  Alias Reminders:    $([[ "$YSU_REMINDER_ENABLED" == "true" ]] && echo "${check} enabled" || echo "${cross} disabled")"
   echo -e "  Modern Suggestions: $([[ "$YSU_SUGGEST_ENABLED" == "true" ]] && echo "${check} enabled" || echo "${cross} disabled")"
   echo -e "  Prefix:             \"${YSU_PREFIX}\""

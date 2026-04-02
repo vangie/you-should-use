@@ -12,6 +12,7 @@
 # Configuration (set these in env.nu BEFORE sourcing this plugin)
 # ============================================================================
 
+$env.YSU_DISABLED = ($env.YSU_DISABLED? | default false)
 $env.YSU_REMINDER_ENABLED = ($env.YSU_REMINDER_ENABLED? | default true)
 $env.YSU_SUGGEST_ENABLED = ($env.YSU_SUGGEST_ENABLED? | default true)
 $env.YSU_LLM_ENABLED = ($env.YSU_LLM_ENABLED? | default false)
@@ -294,6 +295,9 @@ def _ysu_check_modern [typed_command: string] {
 # ============================================================================
 
 def _ysu_preexec [cmd: string] {
+    # Bail out if plugin is disabled
+    if $env.YSU_DISABLED == true { return }
+
     $env._YSU_CMD_HAD_TIPS = false
     _ysu_check_aliases $cmd
     _ysu_check_modern $cmd
@@ -323,6 +327,9 @@ def "ysu status" [] {
     print "─────────────────────────"
 
     print $"($env._YSU_C_BOLD)Core Settings:($env._YSU_C_RESET)"
+    if $env.YSU_DISABLED {
+        print $"  Plugin:             ($cross) disabled (YSU_DISABLED=true)"
+    }
     print $"  Alias Reminders:    (if $env.YSU_REMINDER_ENABLED { $'($check) enabled' } else { $'($cross) disabled' })"
     print $"  Modern Suggestions: (if $env.YSU_SUGGEST_ENABLED { $'($check) enabled' } else { $'($cross) disabled' })"
     print $"  Prefix:             \"($env.YSU_PREFIX)\""

@@ -12,6 +12,7 @@ end
 # Configuration (set these in config.fish BEFORE sourcing)
 # ============================================================================
 
+set -q YSU_DISABLED; or set -g YSU_DISABLED false
 set -q YSU_REMINDER_ENABLED; or set -g YSU_REMINDER_ENABLED true
 set -q YSU_SUGGEST_ENABLED; or set -g YSU_SUGGEST_ENABLED true
 set -q YSU_LLM_ENABLED; or set -g YSU_LLM_ENABLED false
@@ -906,6 +907,9 @@ end
 # ============================================================================
 
 function _ysu_on_preexec --on-event fish_preexec
+    # Bail out if plugin is disabled
+    test "$YSU_DISABLED" = true; and return
+
     set -l typed_command (string trim -- $argv[1])
     test -n "$typed_command"; or return
 
@@ -953,6 +957,9 @@ end
 
 function _ysu_on_postexec --on-event fish_postexec
     set -l last_exit $status
+
+    # Bail out if plugin is disabled
+    test "$YSU_DISABLED" = true; and return
 
     # LLM: display completed async results from previous commands
     if test "$YSU_LLM_ENABLED" = true
@@ -1132,6 +1139,9 @@ function _ysu_status
 
     # Core Settings
     echo -e $bold'Core Settings:'$reset
+    if test "$YSU_DISABLED" = true
+        echo -e "  Plugin:             "$cross' disabled (YSU_DISABLED=true)'
+    end
     echo -e "  Alias Reminders:    "(test "$YSU_REMINDER_ENABLED" = true; and echo -e $check' enabled'; or echo -e $cross' disabled')
     echo -e "  Modern Suggestions: "(test "$YSU_SUGGEST_ENABLED" = true; and echo -e $check' enabled'; or echo -e $cross' disabled')
     echo -e "  Prefix:             \"$YSU_PREFIX\""

@@ -172,10 +172,13 @@ All configuration is done via environment variables. Set them in your shell conf
 ### Feature Toggles
 
 ```bash
+YSU_DISABLED=true            # Disable the entire plugin (default: false)
 YSU_REMINDER_ENABLED=true    # Enable alias reminders (default: true)
 YSU_SUGGEST_ENABLED=true     # Enable modern tool suggestions (default: true)
 YSU_LLM_ENABLED=true         # Enable AI-powered suggestions (default: false, auto-detected with Ollama)
 ```
+
+Setting `YSU_DISABLED=true` silences all YSU output — alias reminders, modern suggestions, and LLM tips. You can toggle it dynamically without restarting your shell.
 
 ### Display
 
