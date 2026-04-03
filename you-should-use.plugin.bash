@@ -655,6 +655,15 @@ _ysu_llm_cache_key() {
   fi
 }
 
+_ysu_strip_env_prefix() {
+  local cmd="$1"
+  # Strip leading VAR=value assignments (e.g. "TASKS=0104 make run" → "make run")
+  while [[ "$cmd" =~ ^[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+(.*) ]]; do
+    cmd="${BASH_REMATCH[1]}"
+  done
+  echo "$cmd"
+}
+
 _ysu_llm_should_trigger() {
   local cmd="$1" exit_code="$2"
 
@@ -914,12 +923,12 @@ _ysu_preexec() {
   # Skip our own internal commands
   [[ "$typed_command" == _ysu_* ]] && return
 
-  # Save full command for LLM evaluation in precmd
-  _YSU_LLM_PENDING_CMD="$typed_command"
+  # Save command for LLM evaluation in precmd (strip env var assignments)
+  _YSU_LLM_PENDING_CMD=$(_ysu_strip_env_prefix "$typed_command")
 
   # Push to multi-command history buffer
   if [[ "$YSU_LLM_ENABLED" == "true" && ("$YSU_LLM_MODE" == "multi" || "$YSU_LLM_MODE" == "both") ]]; then
-    _ysu_multi_push_cmd "$typed_command"
+    _ysu_multi_push_cmd "$_YSU_LLM_PENDING_CMD"
   fi
 
   # Strip sudo prefix for matching
@@ -965,7 +974,10 @@ _ysu_precmd() {
   fi
 
   # LLM: display completed async results
+  # Track which cache keys were just displayed to avoid duplicates
+  local _llm_just_shown=""
   if [[ "$YSU_LLM_ENABLED" == "true" ]]; then
+    [[ -n "$_YSU_LLM_ASYNC_CMD" ]] && _llm_just_shown=$(_ysu_llm_cache_key "$_YSU_LLM_ASYNC_CMD")
     [[ "$YSU_LLM_MODE" != "multi" ]] && _ysu_llm_check_async
     [[ "$YSU_LLM_MODE" != "single" ]] && _ysu_multi_check_async
   fi
@@ -979,12 +991,15 @@ _ysu_precmd() {
         cache_key=$(_ysu_llm_cache_key "$_YSU_LLM_PENDING_CMD")
         local cache_file="${YSU_LLM_CACHE_DIR}/${cache_key}"
 
-        if [[ -f "$cache_file" ]]; then
-          local cached=""
-          [[ -s "$cache_file" ]] && cached=$(< "$cache_file")
-          [[ -n "$cached" ]] && echo -e "$(_ysu_format "$YSU_LLM_PREFIX" "$cached")"
-        else
-          _ysu_llm_query_async "$_YSU_LLM_PENDING_CMD"
+        # Skip if async check already displayed this same result
+        if [[ "$cache_key" != "$_llm_just_shown" ]]; then
+          if [[ -f "$cache_file" ]]; then
+            local cached=""
+            [[ -s "$cache_file" ]] && cached=$(< "$cache_file")
+            [[ -n "$cached" ]] && echo -e "$(_ysu_format "$YSU_LLM_PREFIX" "$cached")"
+          else
+            _ysu_llm_query_async "$_YSU_LLM_PENDING_CMD"
+          fi
         fi
       fi
     fi

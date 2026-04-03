@@ -87,6 +87,37 @@ run_bash() {
   [[ "$output" == key=* ]]
 }
 
+# ============================================================================
+# Env var prefix stripping
+# ============================================================================
+
+@test "bash: strip_env_prefix removes single VAR=value" {
+  run_bash '
+    result=$(_ysu_strip_env_prefix "TASKS=0104 make run")
+    echo "$result"
+  '
+  [ "$status" -eq 0 ]
+  [[ "$output" == "make run" ]]
+}
+
+@test "bash: strip_env_prefix removes multiple VAR=value" {
+  run_bash '
+    result=$(_ysu_strip_env_prefix "CC=gcc CFLAGS=-O2 make build")
+    echo "$result"
+  '
+  [ "$status" -eq 0 ]
+  [[ "$output" == "make build" ]]
+}
+
+@test "bash: strip_env_prefix leaves plain commands unchanged" {
+  run_bash '
+    result=$(_ysu_strip_env_prefix "git status")
+    echo "$result"
+  '
+  [ "$status" -eq 0 ]
+  [[ "$output" == "git status" ]]
+}
+
 @test "bash: llm_should_trigger on non-zero exit" {
   run_bash '
     if _ysu_llm_should_trigger "git push" "1"; then

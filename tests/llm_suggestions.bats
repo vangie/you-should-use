@@ -209,6 +209,62 @@ run_zsh() {
 # JSON extract (integration-style, needs jq or python3)
 # ============================================================================
 
+# ============================================================================
+# Env var prefix stripping
+# ============================================================================
+
+@test "llm: strip_env_prefix removes single VAR=value" {
+  run_zsh '
+    result=$(_ysu_strip_env_prefix "TASKS=0104 make run")
+    echo "$result"
+  '
+  [ "$status" -eq 0 ]
+  [[ "$output" == "make run" ]]
+}
+
+@test "llm: strip_env_prefix removes multiple VAR=value" {
+  run_zsh '
+    result=$(_ysu_strip_env_prefix "CC=gcc CFLAGS=-O2 make build")
+    echo "$result"
+  '
+  [ "$status" -eq 0 ]
+  [[ "$output" == "make build" ]]
+}
+
+@test "llm: strip_env_prefix leaves plain commands unchanged" {
+  run_zsh '
+    result=$(_ysu_strip_env_prefix "git status")
+    echo "$result"
+  '
+  [ "$status" -eq 0 ]
+  [[ "$output" == "git status" ]]
+}
+
+@test "llm: strip_env_prefix handles PATH-like values" {
+  run_zsh '
+    result=$(_ysu_strip_env_prefix "PATH=/usr/bin:/bin ls -la")
+    echo "$result"
+  '
+  [ "$status" -eq 0 ]
+  [[ "$output" == "ls -la" ]]
+}
+
+@test "llm: preexec strips env vars from LLM pending cmd" {
+  run_zsh '
+    YSU_LLM_ENABLED=true
+    YSU_LLM_MODEL=test
+    YSU_LLM_API_URL=http://localhost:0
+    _ysu_preexec "TASKS=0104 make run"
+    echo "$_YSU_LLM_PENDING_CMD"
+  '
+  [ "$status" -eq 0 ]
+  [[ "$output" == "make run" ]]
+}
+
+# ============================================================================
+# JSON content extraction
+# ============================================================================
+
 @test "llm: json extract content from openai response" {
   if ! command -v jq &>/dev/null && ! command -v python3 &>/dev/null; then
     skip "neither jq nor python3 installed"

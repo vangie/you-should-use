@@ -648,6 +648,15 @@ function _ysu_llm_cache_key
     end
 end
 
+function _ysu_strip_env_prefix
+    set -l cmd $argv[1]
+    # Strip leading VAR=value assignments (e.g. "TASKS=0104 make run" → "make run")
+    while string match -qr '^[A-Za-z_][A-Za-z0-9_]*=[^\\s]+\\s+(.+)' -- $cmd
+        set cmd (string replace -r '^[A-Za-z_][A-Za-z0-9_]*=[^\\s]+\\s+' '' -- $cmd)
+    end
+    echo $cmd
+end
+
 function _ysu_llm_should_trigger
     set -l cmd $argv[1]
     set -l exit_code $argv[2]
@@ -950,12 +959,12 @@ function _ysu_on_preexec --on-event fish_preexec
     set -l typed_command (string trim -- $argv[1])
     test -n "$typed_command"; or return
 
-    # Save full command for LLM evaluation in postexec
-    set -g _YSU_LLM_PENDING_CMD "$typed_command"
+    # Save command for LLM evaluation in postexec (strip env var assignments)
+    set -g _YSU_LLM_PENDING_CMD (_ysu_strip_env_prefix "$typed_command")
 
     # Push to multi-command history buffer
     if test "$YSU_LLM_ENABLED" = true; and test "$YSU_LLM_MODE" != single
-        _ysu_multi_push_cmd "$typed_command"
+        _ysu_multi_push_cmd "$_YSU_LLM_PENDING_CMD"
     end
 
     # Strip sudo prefix for matching — check the actual command, not sudo itself
@@ -999,7 +1008,12 @@ function _ysu_on_postexec --on-event fish_postexec
     test "$YSU_DISABLED" = true; and return
 
     # LLM: display completed async results from previous commands
+    # Track which cache keys were just displayed to avoid duplicates
+    set -l _llm_just_shown ""
     if test "$YSU_LLM_ENABLED" = true
+        if test -n "$_YSU_LLM_ASYNC_CMD"
+            set _llm_just_shown (_ysu_llm_cache_key "$_YSU_LLM_ASYNC_CMD")
+        end
         if test "$YSU_LLM_MODE" != multi
             _ysu_llm_check_async
         end
@@ -1016,13 +1030,16 @@ function _ysu_on_postexec --on-event fish_postexec
                 set -l cache_key (_ysu_llm_cache_key "$_YSU_LLM_PENDING_CMD")
                 set -l cache_file "$YSU_LLM_CACHE_DIR/$cache_key"
 
-                if test -f "$cache_file"
-                    if test -s "$cache_file"
-                        set -l cached (cat "$cache_file")
-                        test -n "$cached"; and _ysu_print "$YSU_LLM_PREFIX" "$cached"
+                # Skip if async check already displayed this same result
+                if test "$cache_key" != "$_llm_just_shown"
+                    if test -f "$cache_file"
+                        if test -s "$cache_file"
+                            set -l cached (cat "$cache_file")
+                            test -n "$cached"; and _ysu_print "$YSU_LLM_PREFIX" "$cached"
+                        end
+                    else
+                        _ysu_llm_query_async "$_YSU_LLM_PENDING_CMD"
                     end
-                else
-                    _ysu_llm_query_async "$_YSU_LLM_PENDING_CMD"
                 end
             end
         end
