@@ -539,7 +539,7 @@ def "ysu discover" [min_count?: int] {
 def "ysu cache clear" [] {
     let cache_dir = $env.YSU_LLM_CACHE_DIR
     if ($cache_dir | path exists) {
-        rm -rf $"($cache_dir)/*" | ignore
+        glob $"($cache_dir)/*" $"($cache_dir)/.*" | where { |f| ($f | path type) == "file" } | each { |f| rm $f } | ignore
         print "LLM cache cleared."
     } else {
         print "Cache directory does not exist."

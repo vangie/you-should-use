@@ -1091,8 +1091,7 @@ function ysu
         case cache
             switch $argv[2]
                 case clear
-                    rm -f "$YSU_LLM_CACHE_DIR"/* 2>/dev/null
-                    rm -f "$YSU_LLM_CACHE_DIR"/.pending.* 2>/dev/null
+                    find "$YSU_LLM_CACHE_DIR" -maxdepth 1 -type f -delete 2>/dev/null
                     echo "LLM cache cleared."
                 case size
                     set -l count (find "$YSU_LLM_CACHE_DIR" -maxdepth 1 -type f ! -name '.*' 2>/dev/null | wc -l | string trim)
