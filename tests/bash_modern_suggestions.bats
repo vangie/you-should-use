@@ -56,6 +56,30 @@ run_bash() {
   [[ "$output" == *"count=0"* ]]
 }
 
+@test "bash: respects YSU_IGNORE_SUGGESTIONS for specific pairs" {
+  run_bash '
+    YSU_IGNORE_SUGGESTIONS="cat:bat"
+    YSU_MODERN_KEYS=(cat)
+    YSU_MODERN_VALS=("bat:Better cat")
+    YSU_INSTALL_HINT=false
+    _ysu_check_modern "cat file.txt"
+    echo "count=$(_ysu_message_count)"
+  '
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"count=0"* ]]
+}
+
+@test "bash: _ysu_is_ignored_suggestion matches exact pair" {
+  run_bash '
+    YSU_IGNORE_SUGGESTIONS="make:just cat:bat"
+    _ysu_is_ignored_suggestion "make" "just" && echo "matched" || echo "no"
+    _ysu_is_ignored_suggestion "make" "bat" && echo "matched" || echo "no"
+  '
+  [ "$status" -eq 0 ]
+  [[ "${lines[0]}" == "matched" ]]
+  [[ "${lines[1]}" == "no" ]]
+}
+
 @test "bash: strips sudo prefix for modern suggestions" {
   run_bash '
     YSU_MODERN_KEYS=(top)

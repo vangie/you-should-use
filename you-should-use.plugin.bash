@@ -38,6 +38,7 @@ _ysu_config_dir="${XDG_CONFIG_HOME:-$HOME/.config}/ysu"
 # Exclusions
 : "${YSU_IGNORE_ALIASES:=}"
 : "${YSU_IGNORE_COMMANDS:=}"
+: "${YSU_IGNORE_SUGGESTIONS:=}"
 : "${YSU_INSTALL_HINT:=true}"
 
 # Message template
@@ -398,6 +399,29 @@ _ysu_is_ignored_command() {
   return 1
 }
 
+_ysu_is_ignored_suggestion() {
+  local cmd="$1" alt="$2"
+  local pair
+  for pair in $YSU_IGNORE_SUGGESTIONS; do
+    [[ "$pair" == "${cmd}:${alt}" ]] && return 0
+  done
+  return 1
+}
+
+_ysu_save_ignore_suggestions() {
+  local cfg_dir="${XDG_CONFIG_HOME:-$HOME/.config}/ysu"
+  local cfg_file="${cfg_dir}/config.bash"
+  [[ -d "$cfg_dir" ]] || mkdir -p "$cfg_dir"
+  if [[ -f "$cfg_file" ]]; then
+    local tmp
+    tmp=$(mktemp)
+    grep -v '^export YSU_IGNORE_SUGGESTIONS=' "$cfg_file" > "$tmp" && mv "$tmp" "$cfg_file"
+  fi
+  if [[ -n "$YSU_IGNORE_SUGGESTIONS" ]]; then
+    echo "export YSU_IGNORE_SUGGESTIONS=\"${YSU_IGNORE_SUGGESTIONS}\"" >> "$cfg_file"
+  fi
+}
+
 _ysu_reminder_roll() {
   local key="$1"
   # Fast path: no half-life configured — always show
@@ -528,6 +552,7 @@ _ysu_check_modern() {
       _ctx_entry=$(_ysu_lookup_parallel "$_ctx_key" YSU_CONTEXT_KEYS YSU_CONTEXT_VALS) || continue
       _ctx_cmd="${_ctx_entry%%:*}"
       _ctx_desc="${_ctx_entry#*:}"
+      _ysu_is_ignored_suggestion "$first_word" "$_ctx_cmd" && continue
       if command -v "$_ctx_cmd" &>/dev/null; then
         _ysu_reminder_roll "$first_word" || return
         _ysu_buffer "$YSU_SUGGEST_PREFIX" \
@@ -563,6 +588,8 @@ _ysu_check_modern() {
   for entry in "${entries[@]}"; do
     modern_cmd="${entry%%:*}"
     description="${entry#*:}"
+
+    _ysu_is_ignored_suggestion "$first_word" "$modern_cmd" && continue
 
     if command -v "$modern_cmd" &>/dev/null; then
       # Skip if first_word is already aliased to this modern command
@@ -1063,6 +1090,54 @@ ysu() {
         *) echo "Usage: ysu cache [clear|size]" ;;
       esac
       ;;
+    ignore)
+      if [[ -z "$2" ]]; then
+        if [[ -z "$YSU_IGNORE_SUGGESTIONS" ]]; then
+          echo "No suggestions are currently ignored."
+          echo "Usage: ysu ignore <command>:<alternative>"
+          echo "Example: ysu ignore make:just"
+        else
+          echo "Ignored suggestions:"
+          local pair
+          for pair in $YSU_IGNORE_SUGGESTIONS; do
+            echo "  ${pair%%:*} → ${pair#*:}"
+          done
+        fi
+      else
+        local pair="$2"
+        if [[ "$pair" != *:* ]]; then
+          echo "Invalid format. Use: ysu ignore <command>:<alternative>"
+          echo "Example: ysu ignore make:just"
+          return 1
+        fi
+        if _ysu_is_ignored_suggestion "${pair%%:*}" "${pair#*:}"; then
+          echo "Already ignored: ${pair}"
+          return 0
+        fi
+        YSU_IGNORE_SUGGESTIONS="${YSU_IGNORE_SUGGESTIONS:+$YSU_IGNORE_SUGGESTIONS }${pair}"
+        _ysu_save_ignore_suggestions
+        echo "Ignored: ${pair%%:*} → ${pair#*:}"
+      fi
+      ;;
+    unignore)
+      if [[ -z "$2" ]]; then
+        echo "Usage: ysu unignore <command>:<alternative>"
+        echo "Example: ysu unignore make:just"
+        return 1
+      fi
+      local pair="$2"
+      if ! _ysu_is_ignored_suggestion "${pair%%:*}" "${pair#*:}"; then
+        echo "Not currently ignored: ${pair}"
+        return 1
+      fi
+      local new_list="" p
+      for p in $YSU_IGNORE_SUGGESTIONS; do
+        [[ "$p" != "$pair" ]] && new_list="${new_list:+$new_list }${p}"
+      done
+      YSU_IGNORE_SUGGESTIONS="$new_list"
+      _ysu_save_ignore_suggestions
+      echo "Unignored: ${pair%%:*} → ${pair#*:}"
+      ;;
     status) _ysu_status ;;
     doctor) _ysu_doctor ;;
     discover) shift; _ysu_discover "$@" ;;
@@ -1115,6 +1190,8 @@ ysu() {
       echo "Usage: ysu <command>"
       echo "Commands:"
       echo "  config      Configure you-should-use interactively"
+      echo "  ignore      Suppress a specific suggestion (e.g. ysu ignore make:just)"
+      echo "  unignore    Re-enable a suppressed suggestion"
       echo "  cache       Manage LLM suggestion cache"
       echo "  status      Show current configuration and statistics"
       echo "  doctor      Run diagnostics and check for issues"
@@ -1155,6 +1232,13 @@ _ysu_status() {
   fi
   if [[ -n "$YSU_IGNORE_COMMANDS" ]]; then
     echo -e "  Ignored Commands:   ${YSU_IGNORE_COMMANDS}"
+  fi
+  if [[ -n "$YSU_IGNORE_SUGGESTIONS" ]]; then
+    echo -e "  Ignored Suggestions:"
+    local _pair
+    for _pair in $YSU_IGNORE_SUGGESTIONS; do
+      echo -e "    ${_pair%%:*} → ${_pair#*:}"
+    done
   fi
 
   echo ""

@@ -73,6 +73,46 @@ run_zsh() {
   [[ "$output" == *"count=0"* ]]
 }
 
+@test "ignores specific suggestion via YSU_IGNORE_SUGGESTIONS" {
+  run_zsh '
+    YSU_IGNORE_SUGGESTIONS="cat:bat"
+    YSU_MODERN_COMMANDS=(cat "bat:Better cat")
+    YSU_INSTALL_HINT=false
+    _ysu_check_modern "cat README.md"
+    echo "count=$(_ysu_message_count)"
+  '
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"count=0"* ]]
+}
+
+@test "YSU_IGNORE_SUGGESTIONS does not suppress other commands" {
+  run_zsh '
+    YSU_IGNORE_SUGGESTIONS="cat:bat"
+    YSU_MODERN_COMMANDS=(cat "bat:Better cat" ls "eza:Modern ls")
+    _ysu_check_modern "ls -la"
+    _ysu_get_messages
+  '
+  [ "$status" -eq 0 ]
+  if command -v eza &>/dev/null; then
+    [[ "$output" == *"eza"* ]]
+  fi
+}
+
+@test "_ysu_is_ignored_suggestion matches exact pair" {
+  run_zsh '
+    YSU_IGNORE_SUGGESTIONS="make:just cat:bat"
+    _ysu_is_ignored_suggestion "make" "just" && echo "matched" || echo "no"
+    _ysu_is_ignored_suggestion "cat" "bat" && echo "matched" || echo "no"
+    _ysu_is_ignored_suggestion "make" "bat" && echo "matched" || echo "no"
+    _ysu_is_ignored_suggestion "cat" "just" && echo "matched" || echo "no"
+  '
+  [ "$status" -eq 0 ]
+  [[ "${lines[0]}" == "matched" ]]
+  [[ "${lines[1]}" == "matched" ]]
+  [[ "${lines[2]}" == "no" ]]
+  [[ "${lines[3]}" == "no" ]]
+}
+
 # ---- Multiple alternatives (pipe-separated) ----
 
 @test "suggests first installed alternative from pipe-separated list" {

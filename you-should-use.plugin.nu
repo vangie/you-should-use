@@ -25,6 +25,7 @@ $env.YSU_REMINDER_HALFLIFE = ($env.YSU_REMINDER_HALFLIFE? | default 300)
 $env.YSU_COOLDOWN = ($env.YSU_COOLDOWN? | default 0)
 $env.YSU_IGNORE_ALIASES = ($env.YSU_IGNORE_ALIASES? | default "")
 $env.YSU_IGNORE_COMMANDS = ($env.YSU_IGNORE_COMMANDS? | default "")
+$env.YSU_IGNORE_SUGGESTIONS = ($env.YSU_IGNORE_SUGGESTIONS? | default "")
 $env.YSU_INSTALL_HINT = ($env.YSU_INSTALL_HINT? | default true)
 $env.YSU_MESSAGE_FORMAT = ($env.YSU_MESSAGE_FORMAT? | default "{prefix} {arrow} {message}")
 $env.YSU_LLM_API_URL = ($env.YSU_LLM_API_URL? | default "http://localhost:11434/v1/chat/completions")
@@ -153,6 +154,11 @@ def _ysu_is_ignored_command [cmd: string] {
 def _ysu_is_ignored_alias [name: string] {
     let ignored = ($env.YSU_IGNORE_ALIASES | split row " " | where { |it| $it != "" })
     $name in $ignored
+}
+
+def _ysu_is_ignored_suggestion [cmd: string, alt: string] {
+    let pairs = ($env.YSU_IGNORE_SUGGESTIONS | split row " " | where { |it| $it != "" })
+    $"($cmd):($alt)" in $pairs
 }
 
 def _ysu_reminder_roll [key: string] {
@@ -302,6 +308,8 @@ def _ysu_check_modern [typed_command: string] {
         let modern_cmd = $parts.0
         let description = (if ($parts | length) > 1 { $parts.1 } else { "" })
 
+        if (_ysu_is_ignored_suggestion $first_word $modern_cmd) { continue }
+
         if (which $modern_cmd | length) > 0 {
             if not (_ysu_reminder_roll $first_word) { return }
             let msg = _ysu_format $env.YSU_SUGGEST_PREFIX $"You should use ($env._YSU_C_HIGHLIGHT)($modern_cmd)($env._YSU_C_RESET) instead of ($env._YSU_C_COMMAND)($first_word)($env._YSU_C_RESET) — ($env._YSU_C_DIM)($description)($env._YSU_C_RESET)"
@@ -376,6 +384,13 @@ def "ysu status" [] {
     print $"  Cooldown:           ($env.YSU_COOLDOWN)s"
     print $"  Install Hints:      (if $env.YSU_INSTALL_HINT { $'($check) enabled' } else { $'($cross) disabled' })"
     print $"  Package Manager:    ($env._YSU_PKG_MANAGER)"
+    if ($env.YSU_IGNORE_SUGGESTIONS | str trim) != "" {
+        print "  Ignored Suggestions:"
+        for pair in ($env.YSU_IGNORE_SUGGESTIONS | split row " " | where { |it| $it != "" }) {
+            let parts = ($pair | split row ":" -n 2)
+            print $"    ($parts.0) → ($parts.1)"
+        }
+    }
     print ""
 
     print $"($env._YSU_C_BOLD)LLM Settings:($env._YSU_C_RESET)"
@@ -556,10 +571,55 @@ def "ysu cache size" [] {
     }
 }
 
+def "ysu ignore" [pair?: string] {
+    if ($pair == null) {
+        if ($env.YSU_IGNORE_SUGGESTIONS | str trim) == "" {
+            print "No suggestions are currently ignored."
+            print "Usage: ysu ignore <command>:<alternative>"
+            print "Example: ysu ignore make:just"
+        } else {
+            print "Ignored suggestions:"
+            for p in ($env.YSU_IGNORE_SUGGESTIONS | split row " " | where { |it| $it != "" }) {
+                let parts = ($p | split row ":" -n 2)
+                print $"  ($parts.0) → ($parts.1)"
+            }
+        }
+    } else {
+        if not ($pair | str contains ":") {
+            print "Invalid format. Use: ysu ignore <command>:<alternative>"
+            print "Example: ysu ignore make:just"
+            return
+        }
+        let parts = ($pair | split row ":" -n 2)
+        if (_ysu_is_ignored_suggestion $parts.0 $parts.1) {
+            print $"Already ignored: ($pair)"
+            return
+        }
+        $env.YSU_IGNORE_SUGGESTIONS = (if ($env.YSU_IGNORE_SUGGESTIONS | str trim) == "" { $pair } else { $"($env.YSU_IGNORE_SUGGESTIONS) ($pair)" })
+        print $"Ignored: ($parts.0) → ($parts.1)"
+    }
+}
+
+def "ysu unignore" [pair: string] {
+    if not ($pair | str contains ":") {
+        print "Invalid format. Use: ysu unignore <command>:<alternative>"
+        return
+    }
+    let parts = ($pair | split row ":" -n 2)
+    if not (_ysu_is_ignored_suggestion $parts.0 $parts.1) {
+        print $"Not currently ignored: ($pair)"
+        return
+    }
+    $env.YSU_IGNORE_SUGGESTIONS = ($env.YSU_IGNORE_SUGGESTIONS | split row " " | where { |it| $it != $pair } | str join " ")
+    print $"Unignored: ($parts.0) → ($parts.1)"
+}
+
 # Main ysu command
 def ysu [] {
     print "Usage: ysu <command>"
     print "Commands:"
+    print "  ignore    Suppress a specific suggestion (e.g. ysu ignore make:just)"
+    print "  unignore  Re-enable a suppressed suggestion"
     print "  status    Show current configuration and statistics"
     print "  doctor    Run diagnostics and check for issues"
     print "  discover  Analyze history and suggest aliases"

@@ -25,6 +25,7 @@ set -q YSU_REMINDER_HALFLIFE; or set -g YSU_REMINDER_HALFLIFE 300
 set -q YSU_COOLDOWN; or set -g YSU_COOLDOWN 0
 set -q YSU_IGNORE_ALIASES; or set -g YSU_IGNORE_ALIASES
 set -q YSU_IGNORE_COMMANDS; or set -g YSU_IGNORE_COMMANDS
+set -q YSU_IGNORE_SUGGESTIONS; or set -g YSU_IGNORE_SUGGESTIONS
 set -q YSU_LLM_API_URL; or set -g YSU_LLM_API_URL "http://localhost:11434/v1/chat/completions"
 set -q YSU_LLM_API_KEY; or set -g YSU_LLM_API_KEY ""
 set -q YSU_LLM_MODEL; or set -g YSU_LLM_MODEL "auto"
@@ -362,6 +363,30 @@ function _ysu_is_ignored_command
     return 1
 end
 
+function _ysu_is_ignored_suggestion
+    set -l cmd $argv[1]
+    set -l alt $argv[2]
+    for pair in $YSU_IGNORE_SUGGESTIONS
+        if test "$pair" = "$cmd:$alt"
+            return 0
+        end
+    end
+    return 1
+end
+
+function _ysu_save_ignore_suggestions
+    set -l cfg_dir (set -q XDG_CONFIG_HOME; and echo "$XDG_CONFIG_HOME"; or echo "$HOME/.config")"/ysu"
+    set -l cfg_file "$cfg_dir/config.fish"
+    test -d "$cfg_dir"; or mkdir -p "$cfg_dir"
+    if test -f "$cfg_file"
+        set -l tmp (mktemp)
+        grep -v '^set -gx YSU_IGNORE_SUGGESTIONS' "$cfg_file" > "$tmp"; and mv "$tmp" "$cfg_file"
+    end
+    if test -n "$YSU_IGNORE_SUGGESTIONS"
+        echo "set -gx YSU_IGNORE_SUGGESTIONS $YSU_IGNORE_SUGGESTIONS" >> "$cfg_file"
+    end
+end
+
 function _ysu_reminder_roll
     set -l key $argv[1]
     # Fast path: no half-life configured — always show
@@ -491,6 +516,7 @@ function _ysu_check_modern
                         set -l _ctx_entry $YSU_CONTEXT_VALS[$_ci]
                         set -l _ctx_cmd (string split -m1 ':' -- $_ctx_entry)[1]
                         set -l _ctx_desc (string split -m1 ':' -- $_ctx_entry)[2]
+                        _ysu_is_ignored_suggestion "$first_word" "$_ctx_cmd"; and continue
                         if command -q $_ctx_cmd
                             _ysu_reminder_roll "$first_word"; or return
                             _ysu_print "$YSU_SUGGEST_PREFIX" \
@@ -539,6 +565,8 @@ function _ysu_check_modern
     for entry in (string split '|' -- $mapping)
         set -l modern_cmd (string split -m1 ':' -- $entry)[1]
         set -l description (string split -m1 ':' -- $entry)[2]
+
+        _ysu_is_ignored_suggestion "$first_word" "$modern_cmd"; and continue
 
         if command -q $modern_cmd
             # Skip if first_word is already aliased/abbreviated to this modern command
@@ -1099,6 +1127,59 @@ function ysu
                 case '*'
                     echo "Usage: ysu cache [clear|size]"
             end
+        case ignore
+            if test (count $argv) -lt 2
+                if test -z "$YSU_IGNORE_SUGGESTIONS"
+                    echo "No suggestions are currently ignored."
+                    echo "Usage: ysu ignore <command>:<alternative>"
+                    echo "Example: ysu ignore make:just"
+                else
+                    echo "Ignored suggestions:"
+                    for pair in $YSU_IGNORE_SUGGESTIONS
+                        set -l _cmd (string split -m1 ':' -- $pair)[1]
+                        set -l _alt (string split -m1 ':' -- $pair)[2]
+                        echo "  $_cmd → $_alt"
+                    end
+                end
+            else
+                set -l pair $argv[2]
+                if not string match -qr ':' -- $pair
+                    echo "Invalid format. Use: ysu ignore <command>:<alternative>"
+                    echo "Example: ysu ignore make:just"
+                    return 1
+                end
+                set -l _cmd (string split -m1 ':' -- $pair)[1]
+                set -l _alt (string split -m1 ':' -- $pair)[2]
+                if _ysu_is_ignored_suggestion "$_cmd" "$_alt"
+                    echo "Already ignored: $pair"
+                    return 0
+                end
+                set -g -a YSU_IGNORE_SUGGESTIONS $pair
+                _ysu_save_ignore_suggestions
+                echo "Ignored: $_cmd → $_alt"
+            end
+        case unignore
+            if test (count $argv) -lt 2
+                echo "Usage: ysu unignore <command>:<alternative>"
+                echo "Example: ysu unignore make:just"
+                return 1
+            end
+            set -l pair $argv[2]
+            set -l _cmd (string split -m1 ':' -- $pair)[1]
+            set -l _alt (string split -m1 ':' -- $pair)[2]
+            if not _ysu_is_ignored_suggestion "$_cmd" "$_alt"
+                echo "Not currently ignored: $pair"
+                return 1
+            end
+            set -l new_list
+            for p in $YSU_IGNORE_SUGGESTIONS
+                if test "$p" != "$pair"
+                    set -a new_list $p
+                end
+            end
+            set -g YSU_IGNORE_SUGGESTIONS $new_list
+            _ysu_save_ignore_suggestions
+            echo "Unignored: $_cmd → $_alt"
         case status
             _ysu_status
         case doctor
@@ -1169,6 +1250,8 @@ function ysu
             echo "Usage: ysu <command>"
             echo "Commands:"
             echo "  config      Configure you-should-use interactively"
+            echo "  ignore      Suppress a specific suggestion (e.g. ysu ignore make:just)"
+            echo "  unignore    Re-enable a suppressed suggestion"
             echo "  cache       Manage LLM suggestion cache"
             echo "  status      Show current configuration and statistics"
             echo "  doctor      Run diagnostics and check for issues"
@@ -1213,6 +1296,14 @@ function _ysu_status
     end
     if test -n "$YSU_IGNORE_COMMANDS"
         echo -e "  Ignored Commands:   $YSU_IGNORE_COMMANDS"
+    end
+    if test -n "$YSU_IGNORE_SUGGESTIONS"
+        echo -e "  Ignored Suggestions:"
+        for _pair in $YSU_IGNORE_SUGGESTIONS
+            set -l _cmd (string split -m1 ':' -- $_pair)[1]
+            set -l _alt (string split -m1 ':' -- $_pair)[2]
+            echo -e "    $_cmd → $_alt"
+        end
     end
 
     # LLM Settings

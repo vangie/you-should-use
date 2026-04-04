@@ -220,6 +220,16 @@ YSU_IGNORE_ALIASES="g gc"    # Don't remind about these aliases
 YSU_IGNORE_COMMANDS="cat ls" # Don't suggest alternatives for these
 ```
 
+To suppress a specific suggestion (e.g., don't suggest `just` for `make`, but keep other `make` alternatives):
+
+```bash
+ysu ignore make:just          # Suppress "just" suggestion for "make"
+ysu ignore                    # List all suppressed suggestions
+ysu unignore make:just        # Re-enable the suggestion
+```
+
+This is persisted to your config file automatically.
+
 ### Install Hints
 
 When a modern tool alternative is not installed, the plugin can show the install command:
@@ -294,6 +304,8 @@ YSU_LLM_WINDOW_SIZE=5        # Analyze the last 5 commands
 ```bash
 ysu status      # Show current configuration and statistics
 ysu config      # Interactive configuration wizard
+ysu ignore      # Suppress a specific suggestion (e.g. ysu ignore make:just)
+ysu unignore    # Re-enable a suppressed suggestion
 ysu cache       # Manage LLM suggestion cache (clear, size)
 ysu doctor      # Run diagnostics and check for issues
 ysu discover    # Analyze history and suggest aliases (optional: min count)

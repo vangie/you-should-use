@@ -26,6 +26,7 @@ _ysu_reset() {
   YSU_COOLDOWN=0
   YSU_IGNORE_ALIASES=""
   YSU_IGNORE_COMMANDS=""
+  YSU_IGNORE_SUGGESTIONS=""
   YSU_LLM_ENABLED=false
   YSU_LLM_API_URL="http://localhost:11434/v1/chat/completions"
   YSU_LLM_API_KEY=""
