@@ -207,11 +207,11 @@ Avoid being too intrusive with these settings:
 
 ```bash
 YSU_PROBABILITY=50           # Show tips 50% of the time (default: 100)
-YSU_REMINDER_HALFLIFE=300    # Per-tip refractory period in seconds (default: 0)
+YSU_REMINDER_HALFLIFE=300    # Per-tip refractory period in seconds (default: 300)
 YSU_COOLDOWN=30              # Minimum 30 seconds between tips (default: 0)
 ```
 
-**Reminder Half-life**: When set, each specific tip enters a "refractory period" after being shown. The probability of showing the same tip again ramps linearly from 0% to 100% over the half-life duration. For example, with `YSU_REMINDER_HALFLIFE=300`, a tip that just fired has ~0% chance of showing again immediately, ~50% chance after 150 seconds, and 100% chance after 300 seconds. This prevents the same reminder (e.g., `make` → `just`) from being annoying on repeated use while still eventually reminding you. Set to `0` (default) to always show matching tips.
+**Reminder Half-life**: When set, each specific tip enters a "refractory period" after being shown. The probability of showing the same tip again ramps linearly from 0% to 100% over the half-life duration. For example, with `YSU_REMINDER_HALFLIFE=300`, a tip that just fired has ~0% chance of showing again immediately, ~50% chance after 150 seconds, and 100% chance after 300 seconds. This prevents the same reminder (e.g., `make` → `just`) from being annoying on repeated use while still eventually reminding you. Set to `0` to always show matching tips.
 
 ### Exclusions
 

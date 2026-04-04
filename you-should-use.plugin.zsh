@@ -29,7 +29,7 @@ local _ysu_config="${XDG_CONFIG_HOME:-$HOME/.config}/ysu/config.zsh"
 
 # Frequency control
 : ${YSU_PROBABILITY:=100}         # Percentage chance to show a tip (1-100)
-: ${YSU_REMINDER_HALFLIFE:=0}     # Per-tip refractory period in seconds (0 = disabled)
+: ${YSU_REMINDER_HALFLIFE:=300}   # Per-tip refractory period in seconds (0 = disabled)
 : ${YSU_COOLDOWN:=0}              # Minimum seconds between tips (0 = no cooldown)
 
 # Exclusions

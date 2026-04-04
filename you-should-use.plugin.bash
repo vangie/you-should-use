@@ -32,7 +32,7 @@ _ysu_config_dir="${XDG_CONFIG_HOME:-$HOME/.config}/ysu"
 
 # Frequency control
 : "${YSU_PROBABILITY:=100}"
-: "${YSU_REMINDER_HALFLIFE:=0}"
+: "${YSU_REMINDER_HALFLIFE:=300}"
 : "${YSU_COOLDOWN:=0}"
 
 # Exclusions
