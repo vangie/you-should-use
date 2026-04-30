@@ -37,6 +37,7 @@ local _ysu_config="${XDG_CONFIG_HOME:-$HOME/.config}/ysu/config.zsh"
 : ${YSU_IGNORE_COMMANDS:=""}      # Space-separated list of commands to ignore for suggestions
 : ${YSU_IGNORE_SUGGESTIONS:=""}   # Space-separated list of cmd:alt pairs to ignore (e.g. "make:just cat:bat")
 : ${YSU_INSTALL_HINT:=true}        # Show install commands for modern tool suggestions
+: ${YSU_AUTO_DECAY_THRESHOLD:=10}  # After N ignored shows, enter low-frequency mode (0 = disabled)
 
 # Message template (use {prefix}, {arrow}, {message} placeholders)
 : ${YSU_MESSAGE_FORMAT:="{prefix} {arrow} {message}"}
@@ -451,6 +452,70 @@ _ysu_reminder_roll() {
 }
 
 # ============================================================================
+# Auto-decay: reduce frequency for repeatedly ignored suggestions
+# ============================================================================
+
+_ysu_decay_file() {
+  local cache_dir="${YSU_LLM_CACHE_DIR:-$HOME/.cache/ysu}"
+  local key_hash
+  key_hash=$(_ysu_llm_cache_key "${1}:${2}")
+  echo "${cache_dir}/.decay_${key_hash}"
+}
+
+_ysu_decay_increment() {
+  local file
+  file=$(_ysu_decay_file "$1" "$2")
+  local cache_dir="${YSU_LLM_CACHE_DIR:-$HOME/.cache/ysu}"
+  mkdir -p "$cache_dir"
+  local count=0
+  [[ -f "$file" ]] && count=$(<"$file")
+  echo $(( count + 1 )) > "$file"
+}
+
+_ysu_decay_should_show() {
+  [[ $YSU_AUTO_DECAY_THRESHOLD -le 0 ]] && return 0
+  local file
+  file=$(_ysu_decay_file "$1" "$2")
+  local count=0
+  [[ -f "$file" ]] && count=$(<"$file")
+  [[ $count -lt $YSU_AUTO_DECAY_THRESHOLD ]] && return 0
+  local since=$(( count - YSU_AUTO_DECAY_THRESHOLD ))
+  (( since % 50 == 0 )) && return 0
+  return 1
+}
+
+_ysu_decay_is_low_freq() {
+  [[ $YSU_AUTO_DECAY_THRESHOLD -le 0 ]] && return 1
+  local file
+  file=$(_ysu_decay_file "$1" "$2")
+  local count=0
+  [[ -f "$file" ]] && count=$(<"$file")
+  [[ $count -ge $YSU_AUTO_DECAY_THRESHOLD ]]
+}
+
+_ysu_decay_reset() {
+  local file
+  file=$(_ysu_decay_file "$1" "$2")
+  rm -f "$file" 2>/dev/null
+}
+
+_ysu_check_adoption() {
+  local first_word="${1%% *}"
+  local orig_cmd mapping entry alt_cmd
+  for orig_cmd mapping in ${(kv)YSU_MODERN_COMMANDS}; do
+    for entry in ${(s:|:)mapping}; do
+      alt_cmd="${entry%%:*}"
+      [[ "$first_word" == "$alt_cmd" ]] && _ysu_decay_reset "$orig_cmd" "$alt_cmd"
+    done
+  done
+  local ctx_key ctx_entry ctx_cmd
+  for ctx_key ctx_entry in ${(kv)YSU_CONTEXT_COMMANDS}; do
+    ctx_cmd="${ctx_entry%%:*}"
+    [[ "$first_word" == "$ctx_cmd" ]] && _ysu_decay_reset "${ctx_key%%:*}" "$ctx_cmd"
+  done
+}
+
+# ============================================================================
 # Feature 1: Alias Reminders
 # ============================================================================
 
@@ -593,9 +658,14 @@ _ysu_check_modern() {
       _ctx_desc="${_ctx_entry#*:}"
       _ysu_is_ignored_suggestion "$first_word" "$_ctx_cmd" && continue
       if command -v "$_ctx_cmd" &>/dev/null; then
+        _ysu_decay_increment "$first_word" "$_ctx_cmd"
+        _ysu_decay_should_show "$first_word" "$_ctx_cmd" || return
         _ysu_reminder_roll "$first_word" || return
-        _ysu_buffer "$YSU_SUGGEST_PREFIX" \
-          "You should use ${_YSU_C_HIGHLIGHT}${_ctx_cmd}${_YSU_C_RESET} instead of ${_YSU_C_COMMAND}${first_word}${_YSU_C_RESET} — ${_YSU_C_DIM}${_ctx_desc}${_YSU_C_RESET}"
+        local _decay_msg="You should use ${_YSU_C_HIGHLIGHT}${_ctx_cmd}${_YSU_C_RESET} instead of ${_YSU_C_COMMAND}${first_word}${_YSU_C_RESET} — ${_YSU_C_DIM}${_ctx_desc}${_YSU_C_RESET}"
+        if _ysu_decay_is_low_freq "$first_word" "$_ctx_cmd"; then
+          _decay_msg="${_decay_msg}\n     ${_YSU_C_DIM}此建议已被多次忽略，运行 ${_YSU_C_HINT}ysu ignore ${first_word}:${_ctx_cmd}${_YSU_C_RESET}${_YSU_C_DIM} 可永久关闭${_YSU_C_RESET}"
+        fi
+        _ysu_buffer "$YSU_SUGGEST_PREFIX" "$_decay_msg"
         _ysu_record_tip
         return
       elif [[ "$YSU_INSTALL_HINT" == "true" ]]; then
@@ -630,9 +700,14 @@ _ysu_check_modern() {
       local alias_val="${aliases[$first_word]:-${galiases[$first_word]:-}}"
       [[ "${alias_val%% *}" == "$modern_cmd" ]] && return
 
+      _ysu_decay_increment "$first_word" "$modern_cmd"
+      _ysu_decay_should_show "$first_word" "$modern_cmd" || return
       _ysu_reminder_roll "$first_word" || return
-      _ysu_buffer "$YSU_SUGGEST_PREFIX" \
-        "You should use ${_YSU_C_HIGHLIGHT}${modern_cmd}${_YSU_C_RESET} instead of ${_YSU_C_COMMAND}${first_word}${_YSU_C_RESET} — ${_YSU_C_DIM}${description}${_YSU_C_RESET}"
+      local _decay_msg="You should use ${_YSU_C_HIGHLIGHT}${modern_cmd}${_YSU_C_RESET} instead of ${_YSU_C_COMMAND}${first_word}${_YSU_C_RESET} — ${_YSU_C_DIM}${description}${_YSU_C_RESET}"
+      if _ysu_decay_is_low_freq "$first_word" "$modern_cmd"; then
+        _decay_msg="${_decay_msg}\n     ${_YSU_C_DIM}此建议已被多次忽略，运行 ${_YSU_C_HINT}ysu ignore ${first_word}:${modern_cmd}${_YSU_C_RESET}${_YSU_C_DIM} 可永久关闭${_YSU_C_RESET}"
+      fi
+      _ysu_buffer "$YSU_SUGGEST_PREFIX" "$_decay_msg"
       _ysu_record_tip
       return
     elif [[ -z "$_ysu_first_uninstalled" ]]; then
@@ -1011,6 +1086,9 @@ _ysu_preexec() {
   # Skip if only sudo with no actual command
   [[ -z "$check_command" ]] && return
 
+  # Check if user adopted a modern alternative (resets decay counter)
+  _ysu_check_adoption "$check_command"
+
   # Check rate limiting
   _ysu_should_show || return
 
@@ -1314,6 +1392,11 @@ _ysu_status() {
     echo -e "  Reminder Halflife:  ${YSU_REMINDER_HALFLIFE}s"
   fi
   echo -e "  Cooldown:           ${YSU_COOLDOWN}s"
+  if [[ $YSU_AUTO_DECAY_THRESHOLD -gt 0 ]]; then
+    echo -e "  Auto-Decay:         after ${YSU_AUTO_DECAY_THRESHOLD} ignores → low-frequency"
+  else
+    echo -e "  Auto-Decay:         ${cross} disabled"
+  fi
   echo -e "  Install Hints:      $([[ "$YSU_INSTALL_HINT" == "true" ]] && echo "${check} enabled" || echo "${cross} disabled")"
   echo -e "  Package Manager:    ${_YSU_PKG_MANAGER}$([[ "$_YSU_IS_WSL" == "true" ]] && echo " (WSL)")"
   if [[ "$YSU_MESSAGE_FORMAT" != "{prefix} {arrow} {message}" ]]; then

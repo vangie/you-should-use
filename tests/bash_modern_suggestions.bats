@@ -123,3 +123,43 @@ run_bash() {
   [ "$status" -eq 0 ]
   [[ "$output" == *"result=[]"* ]]
 }
+
+# ---- Auto-decay ----
+
+@test "bash: auto-decay suppresses suggestion after threshold" {
+  run_bash '
+    YSU_AUTO_DECAY_THRESHOLD=3
+    YSU_MODERN_KEYS=(top)
+    YSU_MODERN_VALS=("htop:Interactive process viewer")
+    if command -v htop &>/dev/null; then
+      dfile=$(_ysu_decay_file "top" "htop")
+      mkdir -p "${dfile%/*}"
+      echo 4 > "$dfile"
+      _ysu_check_modern "top"
+      echo "count=$(_ysu_message_count)"
+    else
+      echo "count=0"
+    fi
+  '
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"count=0"* ]]
+}
+
+@test "bash: auto-decay reset on adoption" {
+  run_bash '
+    YSU_AUTO_DECAY_THRESHOLD=3
+    YSU_MODERN_KEYS=(top)
+    YSU_MODERN_VALS=("htop:Interactive process viewer")
+    dfile=$(_ysu_decay_file "top" "htop")
+    mkdir -p "${dfile%/*}"
+    echo 15 > "$dfile"
+    _ysu_check_adoption "htop --sort-key=PERCENT_CPU"
+    if [[ -f "$dfile" ]]; then
+      echo "exists"
+    else
+      echo "reset"
+    fi
+  '
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"reset"* ]]
+}

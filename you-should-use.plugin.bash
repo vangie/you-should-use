@@ -40,6 +40,7 @@ _ysu_config_dir="${XDG_CONFIG_HOME:-$HOME/.config}/ysu"
 : "${YSU_IGNORE_COMMANDS:=}"
 : "${YSU_IGNORE_SUGGESTIONS:=}"
 : "${YSU_INSTALL_HINT:=true}"
+: "${YSU_AUTO_DECAY_THRESHOLD:=10}"
 
 # Message template
 : "${YSU_MESSAGE_FORMAT:={prefix} {arrow} {message}}"
@@ -454,6 +455,76 @@ _ysu_reminder_roll() {
   return 0
 }
 
+# ============================================================================
+# Auto-decay: reduce frequency for repeatedly ignored suggestions
+# ============================================================================
+
+_ysu_decay_file() {
+  local cache_dir="${YSU_LLM_CACHE_DIR:-$HOME/.cache/ysu}"
+  local key_hash
+  key_hash=$(_ysu_llm_cache_key "${1}:${2}")
+  echo "${cache_dir}/.decay_${key_hash}"
+}
+
+_ysu_decay_increment() {
+  local file
+  file=$(_ysu_decay_file "$1" "$2")
+  local cache_dir="${YSU_LLM_CACHE_DIR:-$HOME/.cache/ysu}"
+  mkdir -p "$cache_dir"
+  local count=0
+  [[ -f "$file" ]] && count=$(< "$file")
+  echo $(( count + 1 )) > "$file"
+}
+
+_ysu_decay_should_show() {
+  [[ $YSU_AUTO_DECAY_THRESHOLD -le 0 ]] && return 0
+  local file
+  file=$(_ysu_decay_file "$1" "$2")
+  local count=0
+  [[ -f "$file" ]] && count=$(< "$file")
+  [[ $count -lt $YSU_AUTO_DECAY_THRESHOLD ]] && return 0
+  local since=$(( count - YSU_AUTO_DECAY_THRESHOLD ))
+  (( since % 50 == 0 )) && return 0
+  return 1
+}
+
+_ysu_decay_is_low_freq() {
+  [[ $YSU_AUTO_DECAY_THRESHOLD -le 0 ]] && return 1
+  local file
+  file=$(_ysu_decay_file "$1" "$2")
+  local count=0
+  [[ -f "$file" ]] && count=$(< "$file")
+  [[ $count -ge $YSU_AUTO_DECAY_THRESHOLD ]]
+}
+
+_ysu_decay_reset() {
+  local file
+  file=$(_ysu_decay_file "$1" "$2")
+  rm -f "$file" 2>/dev/null
+}
+
+_ysu_check_adoption() {
+  local first_word="${1%% *}"
+  local i entry alt_cmd
+  for (( i=0; i<${#YSU_MODERN_KEYS[@]}; i++ )); do
+    local IFS_SAVE="$IFS"
+    IFS='|'
+    local entries=(${YSU_MODERN_VALS[$i]})
+    IFS="$IFS_SAVE"
+    for entry in "${entries[@]}"; do
+      alt_cmd="${entry%%:*}"
+      [[ "$first_word" == "$alt_cmd" ]] && _ysu_decay_reset "${YSU_MODERN_KEYS[$i]}" "$alt_cmd"
+    done
+  done
+  local j ctx_cmd
+  for (( j=0; j<${#YSU_CONTEXT_KEYS[@]}; j++ )); do
+    ctx_cmd="${YSU_CONTEXT_VALS[$j]%%:*}"
+    if [[ "$first_word" == "$ctx_cmd" ]]; then
+      _ysu_decay_reset "${YSU_CONTEXT_KEYS[$j]%%:*}" "$ctx_cmd"
+    fi
+  done
+}
+
 # Look up a value in parallel arrays by key
 # Usage: _ysu_lookup_parallel KEY KEYS_ARRAY_NAME VALS_ARRAY_NAME
 # Prints the value if found, empty string otherwise
@@ -554,9 +625,14 @@ _ysu_check_modern() {
       _ctx_desc="${_ctx_entry#*:}"
       _ysu_is_ignored_suggestion "$first_word" "$_ctx_cmd" && continue
       if command -v "$_ctx_cmd" &>/dev/null; then
+        _ysu_decay_increment "$first_word" "$_ctx_cmd"
+        _ysu_decay_should_show "$first_word" "$_ctx_cmd" || return
         _ysu_reminder_roll "$first_word" || return
-        _ysu_buffer "$YSU_SUGGEST_PREFIX" \
-          "You should use ${_YSU_C_HIGHLIGHT}${_ctx_cmd}${_YSU_C_RESET} instead of ${_YSU_C_COMMAND}${first_word}${_YSU_C_RESET} — ${_YSU_C_DIM}${_ctx_desc}${_YSU_C_RESET}"
+        local _decay_msg="You should use ${_YSU_C_HIGHLIGHT}${_ctx_cmd}${_YSU_C_RESET} instead of ${_YSU_C_COMMAND}${first_word}${_YSU_C_RESET} — ${_YSU_C_DIM}${_ctx_desc}${_YSU_C_RESET}"
+        if _ysu_decay_is_low_freq "$first_word" "$_ctx_cmd"; then
+          _decay_msg="${_decay_msg}\n     ${_YSU_C_DIM}此建议已被多次忽略，运行 ${_YSU_C_HINT}ysu ignore ${first_word}:${_ctx_cmd}${_YSU_C_RESET}${_YSU_C_DIM} 可永久关闭${_YSU_C_RESET}"
+        fi
+        _ysu_buffer "$YSU_SUGGEST_PREFIX" "$_decay_msg"
         _ysu_record_tip
         return
       elif [[ "$YSU_INSTALL_HINT" == "true" ]]; then
@@ -597,9 +673,14 @@ _ysu_check_modern() {
       alias_val=$(alias "$first_word" 2>/dev/null | sed "s/^alias ${first_word}='\\(.*\\)'$/\\1/")
       [[ "${alias_val%% *}" == "$modern_cmd" ]] && return
 
+      _ysu_decay_increment "$first_word" "$modern_cmd"
+      _ysu_decay_should_show "$first_word" "$modern_cmd" || return
       _ysu_reminder_roll "$first_word" || return
-      _ysu_buffer "$YSU_SUGGEST_PREFIX" \
-        "You should use ${_YSU_C_HIGHLIGHT}${modern_cmd}${_YSU_C_RESET} instead of ${_YSU_C_COMMAND}${first_word}${_YSU_C_RESET} — ${_YSU_C_DIM}${description}${_YSU_C_RESET}"
+      local _decay_msg="You should use ${_YSU_C_HIGHLIGHT}${modern_cmd}${_YSU_C_RESET} instead of ${_YSU_C_COMMAND}${first_word}${_YSU_C_RESET} — ${_YSU_C_DIM}${description}${_YSU_C_RESET}"
+      if _ysu_decay_is_low_freq "$first_word" "$modern_cmd"; then
+        _decay_msg="${_decay_msg}\n     ${_YSU_C_DIM}此建议已被多次忽略，运行 ${_YSU_C_HINT}ysu ignore ${first_word}:${modern_cmd}${_YSU_C_RESET}${_YSU_C_DIM} 可永久关闭${_YSU_C_RESET}"
+      fi
+      _ysu_buffer "$YSU_SUGGEST_PREFIX" "$_decay_msg"
       _ysu_record_tip
       return
     elif [[ -z "$_first_uninstalled" ]]; then
@@ -969,6 +1050,9 @@ _ysu_preexec() {
 
   [[ -z "$check_command" ]] && return
 
+  # Check if user adopted a modern alternative (resets decay counter)
+  _ysu_check_adoption "$check_command"
+
   _ysu_should_show || return
 
   local _ysu_tip_time_before=$_YSU_LAST_TIP_TIME
@@ -1222,6 +1306,11 @@ _ysu_status() {
     echo -e "  Reminder Halflife:  ${YSU_REMINDER_HALFLIFE}s"
   fi
   echo -e "  Cooldown:           ${YSU_COOLDOWN}s"
+  if [[ $YSU_AUTO_DECAY_THRESHOLD -gt 0 ]]; then
+    echo -e "  Auto-Decay:         after ${YSU_AUTO_DECAY_THRESHOLD} ignores → low-frequency"
+  else
+    echo -e "  Auto-Decay:         ${cross} disabled"
+  fi
   echo -e "  Install Hints:      $([[ "$YSU_INSTALL_HINT" == "true" ]] && echo "${check} enabled" || echo "${cross} disabled")"
   echo -e "  Package Manager:    ${_YSU_PKG_MANAGER}$([[ "$_YSU_IS_WSL" == "true" ]] && echo " (WSL)")"
   if [[ "$YSU_MESSAGE_FORMAT" != "{prefix} {arrow} {message}" ]]; then

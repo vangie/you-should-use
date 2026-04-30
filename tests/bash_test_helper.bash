@@ -46,6 +46,7 @@ _ysu_reset() {
   _YSU_PROMO_DATE=""
   _YSU_CMD_HAD_TIPS=false
   YSU_INSTALL_HINT=true
+  YSU_AUTO_DECAY_THRESHOLD=10
   YSU_MESSAGE_FORMAT="{prefix} {arrow} {message}"
   YSU_LLM_MODE="single"
   YSU_LLM_WINDOW_SIZE=5

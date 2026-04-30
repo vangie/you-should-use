@@ -33,6 +33,7 @@ set -q YSU_LLM_CACHE_DIR; or set -g YSU_LLM_CACHE_DIR "$HOME/.cache/ysu"
 set -q YSU_LLM_MODE; or set -g YSU_LLM_MODE "single"
 set -q YSU_LLM_WINDOW_SIZE; or set -g YSU_LLM_WINDOW_SIZE 5
 set -q YSU_INSTALL_HINT; or set -g YSU_INSTALL_HINT true
+set -q YSU_AUTO_DECAY_THRESHOLD; or set -g YSU_AUTO_DECAY_THRESHOLD 10
 set -q YSU_MESSAGE_FORMAT; or set -g YSU_MESSAGE_FORMAT "{prefix} {arrow} {message}"
 
 # Theme settings
@@ -417,6 +418,69 @@ function _ysu_reminder_roll
 end
 
 # ============================================================================
+# Auto-decay: reduce frequency for repeatedly ignored suggestions
+# ============================================================================
+
+function _ysu_decay_file
+    set -l cache_dir "$YSU_LLM_CACHE_DIR"
+    test -n "$cache_dir"; or set cache_dir "$HOME/.cache/ysu"
+    set -l key_hash (_ysu_llm_cache_key "$argv[1]:$argv[2]")
+    echo "$cache_dir/.decay_$key_hash"
+end
+
+function _ysu_decay_increment
+    set -l file (_ysu_decay_file $argv[1] $argv[2])
+    set -l cache_dir (dirname "$file")
+    mkdir -p "$cache_dir"
+    set -l count 0
+    test -f "$file"; and set count (cat "$file" 2>/dev/null)
+    math "$count + 1" > "$file"
+end
+
+function _ysu_decay_should_show
+    test "$YSU_AUTO_DECAY_THRESHOLD" -le 0; and return 0
+    set -l file (_ysu_decay_file $argv[1] $argv[2])
+    set -l count 0
+    test -f "$file"; and set count (cat "$file" 2>/dev/null)
+    test "$count" -lt "$YSU_AUTO_DECAY_THRESHOLD"; and return 0
+    set -l since (math "$count - $YSU_AUTO_DECAY_THRESHOLD")
+    test (math "$since % 50") -eq 0; and return 0
+    return 1
+end
+
+function _ysu_decay_is_low_freq
+    test "$YSU_AUTO_DECAY_THRESHOLD" -le 0; and return 1
+    set -l file (_ysu_decay_file $argv[1] $argv[2])
+    set -l count 0
+    test -f "$file"; and set count (cat "$file" 2>/dev/null)
+    test "$count" -ge "$YSU_AUTO_DECAY_THRESHOLD"
+end
+
+function _ysu_decay_reset
+    set -l file (_ysu_decay_file $argv[1] $argv[2])
+    rm -f "$file" 2>/dev/null
+end
+
+function _ysu_check_adoption
+    set -l first_word (string split -m1 ' ' -- $argv[1])[1]
+    for i in (seq (count $YSU_MODERN_KEYS))
+        for entry in (string split '|' -- $YSU_MODERN_VALS[$i])
+            set -l alt_cmd (string split -m1 ':' -- $entry)[1]
+            if test "$first_word" = "$alt_cmd"
+                _ysu_decay_reset "$YSU_MODERN_KEYS[$i]" "$alt_cmd"
+            end
+        end
+    end
+    for j in (seq (count $YSU_CONTEXT_KEYS))
+        set -l ctx_cmd (string split -m1 ':' -- $YSU_CONTEXT_VALS[$j])[1]
+        if test "$first_word" = "$ctx_cmd"
+            set -l ctx_orig (string split -m1 ':' -- $YSU_CONTEXT_KEYS[$j])[1]
+            _ysu_decay_reset "$ctx_orig" "$ctx_cmd"
+        end
+    end
+end
+
+# ============================================================================
 # Feature 1: Alias Reminders (Fish abbreviations and functions)
 # ============================================================================
 
@@ -518,9 +582,14 @@ function _ysu_check_modern
                         set -l _ctx_desc (string split -m1 ':' -- $_ctx_entry)[2]
                         _ysu_is_ignored_suggestion "$first_word" "$_ctx_cmd"; and continue
                         if command -q $_ctx_cmd
+                            _ysu_decay_increment "$first_word" "$_ctx_cmd"
+                            _ysu_decay_should_show "$first_word" "$_ctx_cmd"; or return
                             _ysu_reminder_roll "$first_word"; or return
-                            _ysu_print "$YSU_SUGGEST_PREFIX" \
-                                "You should use $_YSU_C_HIGHLIGHT$_ctx_cmd$_YSU_C_RESET instead of $_YSU_C_COMMAND$first_word$_YSU_C_RESET — $_YSU_C_DIM$_ctx_desc$_YSU_C_RESET"
+                            set -l _decay_msg "You should use $_YSU_C_HIGHLIGHT$_ctx_cmd$_YSU_C_RESET instead of $_YSU_C_COMMAND$first_word$_YSU_C_RESET — $_YSU_C_DIM$_ctx_desc$_YSU_C_RESET"
+                            if _ysu_decay_is_low_freq "$first_word" "$_ctx_cmd"
+                                set _decay_msg "$_decay_msg\n     $_YSU_C_DIM""此建议已被多次忽略，运行 $_YSU_C_HINT""ysu ignore $first_word:$_ctx_cmd$_YSU_C_RESET$_YSU_C_DIM 可永久关闭$_YSU_C_RESET"
+                            end
+                            _ysu_print "$YSU_SUGGEST_PREFIX" "$_decay_msg"
                             _ysu_record_tip
                             return
                         else if test "$YSU_INSTALL_HINT" = true
@@ -592,9 +661,14 @@ function _ysu_check_modern
             end
             test "$_skip" = true; and return
 
+            _ysu_decay_increment "$first_word" "$modern_cmd"
+            _ysu_decay_should_show "$first_word" "$modern_cmd"; or return
             _ysu_reminder_roll "$first_word"; or return
-            _ysu_print "$YSU_SUGGEST_PREFIX" \
-                "You should use $_YSU_C_HIGHLIGHT$modern_cmd$_YSU_C_RESET instead of $_YSU_C_COMMAND$first_word$_YSU_C_RESET — $_YSU_C_DIM$description$_YSU_C_RESET"
+            set -l _decay_msg "You should use $_YSU_C_HIGHLIGHT$modern_cmd$_YSU_C_RESET instead of $_YSU_C_COMMAND$first_word$_YSU_C_RESET — $_YSU_C_DIM$description$_YSU_C_RESET"
+            if _ysu_decay_is_low_freq "$first_word" "$modern_cmd"
+                set _decay_msg "$_decay_msg\n     $_YSU_C_DIM""此建议已被多次忽略，运行 $_YSU_C_HINT""ysu ignore $first_word:$modern_cmd$_YSU_C_RESET$_YSU_C_DIM 可永久关闭$_YSU_C_RESET"
+            end
+            _ysu_print "$YSU_SUGGEST_PREFIX" "$_decay_msg"
             _ysu_record_tip
             return
         else if test -z "$_first_uninstalled"
@@ -1006,6 +1080,9 @@ function _ysu_on_preexec --on-event fish_preexec
     # Skip if only sudo with no actual command
     test -n "$check_command"; or return
 
+    # Check if user adopted a modern alternative (resets decay counter)
+    _ysu_check_adoption "$check_command"
+
     _ysu_should_show; or return
 
     # Three-tier priority for sudo commands:
@@ -1286,6 +1363,11 @@ function _ysu_status
         echo -e "  Reminder Halflife:  "$YSU_REMINDER_HALFLIFE"s"
     end
     echo -e "  Cooldown:           "$YSU_COOLDOWN"s"
+    if test "$YSU_AUTO_DECAY_THRESHOLD" -gt 0
+        echo -e "  Auto-Decay:         after "$YSU_AUTO_DECAY_THRESHOLD" ignores → low-frequency"
+    else
+        echo -e "  Auto-Decay:         "$cross" disabled"
+    end
     echo -e "  Install Hints:      "(test "$YSU_INSTALL_HINT" = true; and echo -e $check' enabled'; or echo -e $cross' disabled')
     echo -e "  Package Manager:    $_YSU_PKG_MANAGER"(test "$_YSU_IS_WSL" = true; and echo " (WSL)"; or echo "")
     if test "$YSU_MESSAGE_FORMAT" != "{prefix} {arrow} {message}"

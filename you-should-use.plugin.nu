@@ -27,6 +27,7 @@ $env.YSU_IGNORE_ALIASES = ($env.YSU_IGNORE_ALIASES? | default "")
 $env.YSU_IGNORE_COMMANDS = ($env.YSU_IGNORE_COMMANDS? | default "")
 $env.YSU_IGNORE_SUGGESTIONS = ($env.YSU_IGNORE_SUGGESTIONS? | default "")
 $env.YSU_INSTALL_HINT = ($env.YSU_INSTALL_HINT? | default true)
+$env.YSU_AUTO_DECAY_THRESHOLD = ($env.YSU_AUTO_DECAY_THRESHOLD? | default 10)
 $env.YSU_MESSAGE_FORMAT = ($env.YSU_MESSAGE_FORMAT? | default "{prefix} {arrow} {message}")
 $env.YSU_LLM_API_URL = ($env.YSU_LLM_API_URL? | default "http://localhost:11434/v1/chat/completions")
 $env.YSU_LLM_API_KEY = ($env.YSU_LLM_API_KEY? | default "")
@@ -233,6 +234,57 @@ def _ysu_get_install_cmd [tool: string] {
 }
 
 # ============================================================================
+# Auto-decay: reduce frequency for repeatedly ignored suggestions
+# ============================================================================
+
+def _ysu_decay_file [cmd: string, alt: string] {
+    let cache_dir = $env.YSU_LLM_CACHE_DIR
+    let key_hash = ($"($cmd):($alt)" | hash md5)
+    $"($cache_dir)/.decay_($key_hash)"
+}
+
+def _ysu_decay_increment [cmd: string, alt: string] {
+    let file = (_ysu_decay_file $cmd $alt)
+    mkdir ($env.YSU_LLM_CACHE_DIR)
+    let count = if ($file | path exists) { open $file | str trim | into int } else { 0 }
+    $count + 1 | into string | save -f $file
+}
+
+def _ysu_decay_should_show [cmd: string, alt: string] {
+    if $env.YSU_AUTO_DECAY_THRESHOLD <= 0 { return true }
+    let file = (_ysu_decay_file $cmd $alt)
+    let count = if ($file | path exists) { open $file | str trim | into int } else { 0 }
+    if $count < $env.YSU_AUTO_DECAY_THRESHOLD { return true }
+    let since = $count - $env.YSU_AUTO_DECAY_THRESHOLD
+    ($since mod 50) == 0
+}
+
+def _ysu_decay_is_low_freq [cmd: string, alt: string] {
+    if $env.YSU_AUTO_DECAY_THRESHOLD <= 0 { return false }
+    let file = (_ysu_decay_file $cmd $alt)
+    let count = if ($file | path exists) { open $file | str trim | into int } else { 0 }
+    $count >= $env.YSU_AUTO_DECAY_THRESHOLD
+}
+
+def _ysu_decay_reset [cmd: string, alt: string] {
+    let file = (_ysu_decay_file $cmd $alt)
+    if ($file | path exists) { rm $file }
+}
+
+def _ysu_check_adoption [typed_command: string] {
+    let first_word = ($typed_command | split row " " | first)
+    for orig_cmd in ($YSU_MODERN_COMMANDS | columns) {
+        let mapping = ($YSU_MODERN_COMMANDS | get $orig_cmd)
+        for entry in ($mapping | split row "|") {
+            let alt_cmd = ($entry | split row ":" -n 2 | first)
+            if $first_word == $alt_cmd {
+                _ysu_decay_reset $orig_cmd $alt_cmd
+            }
+        }
+    }
+}
+
+# ============================================================================
 # Feature 1: Alias reminders
 # ============================================================================
 
@@ -311,8 +363,14 @@ def _ysu_check_modern [typed_command: string] {
         if (_ysu_is_ignored_suggestion $first_word $modern_cmd) { continue }
 
         if (which $modern_cmd | length) > 0 {
+            _ysu_decay_increment $first_word $modern_cmd
+            if not (_ysu_decay_should_show $first_word $modern_cmd) { return }
             if not (_ysu_reminder_roll $first_word) { return }
-            let msg = _ysu_format $env.YSU_SUGGEST_PREFIX $"You should use ($env._YSU_C_HIGHLIGHT)($modern_cmd)($env._YSU_C_RESET) instead of ($env._YSU_C_COMMAND)($first_word)($env._YSU_C_RESET) — ($env._YSU_C_DIM)($description)($env._YSU_C_RESET)"
+            mut decay_msg = $"You should use ($env._YSU_C_HIGHLIGHT)($modern_cmd)($env._YSU_C_RESET) instead of ($env._YSU_C_COMMAND)($first_word)($env._YSU_C_RESET) — ($env._YSU_C_DIM)($description)($env._YSU_C_RESET)"
+            if (_ysu_decay_is_low_freq $first_word $modern_cmd) {
+                $decay_msg = $"($decay_msg)\n     ($env._YSU_C_DIM)此建议已被多次忽略，运行 ($env._YSU_C_HINT)ysu ignore ($first_word):($modern_cmd)($env._YSU_C_RESET)($env._YSU_C_DIM) 可永久关闭($env._YSU_C_RESET)"
+            }
+            let msg = _ysu_format $env.YSU_SUGGEST_PREFIX $decay_msg
             print $msg
             $env._YSU_CMD_HAD_TIPS = true
             return
@@ -343,6 +401,7 @@ def _ysu_preexec [cmd: string] {
     if $env.YSU_DISABLED == true { return }
 
     $env._YSU_CMD_HAD_TIPS = false
+    _ysu_check_adoption $cmd
     _ysu_check_aliases $cmd
     _ysu_check_modern $cmd
 }
@@ -382,6 +441,11 @@ def "ysu status" [] {
         print $"  Reminder Halflife:  ($env.YSU_REMINDER_HALFLIFE)s"
     }
     print $"  Cooldown:           ($env.YSU_COOLDOWN)s"
+    if $env.YSU_AUTO_DECAY_THRESHOLD > 0 {
+        print $"  Auto-Decay:         after ($env.YSU_AUTO_DECAY_THRESHOLD) ignores → low-frequency"
+    } else {
+        print $"  Auto-Decay:         ($cross) disabled"
+    }
     print $"  Install Hints:      (if $env.YSU_INSTALL_HINT { $'($check) enabled' } else { $'($cross) disabled' })"
     print $"  Package Manager:    ($env._YSU_PKG_MANAGER)"
     if ($env.YSU_IGNORE_SUGGESTIONS | str trim) != "" {
